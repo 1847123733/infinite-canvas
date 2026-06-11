@@ -11,14 +11,17 @@ const localChangelog = readFileSync(resolve(webDir, "../CHANGELOG.md"), "utf8");
 
 export default function nextConfig(phase: string): NextConfig {
     const isDev = phase === PHASE_DEVELOPMENT_SERVER;
+    const isExport = process.env.NEXT_EXPORT === "1";
     const releases = parseChangelog(localChangelog);
 
     return {
-        output: "standalone",
+        output: isExport ? "export" : "standalone",
+        images: isExport ? { unoptimized: true } : undefined,
         allowedDevOrigins: isDev ? ["*.*.*.*"] : [],
         typescript: {
             ignoreBuildErrors: true,
         },
+        turbo: isExport ? undefined : {},  // 禁用 Turbopack 进行静态导出
         env: {
             NEXT_PUBLIC_APP_VERSION: localVersion,
             NEXT_PUBLIC_APP_RELEASES: JSON.stringify(releases),

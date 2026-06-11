@@ -7,4 +7,12 @@ data/
 *.log
 *.tsbuildinfo
 .DS_Store
-.idea
+.idea/
+
+# Build artifacts
+infinite-canvas
+infinite-canvas.exe
+infinite-canvas-*
+
+# Temporary backup files from build scripts
+*exe-build-bak
