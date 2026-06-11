@@ -33,7 +33,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
     return (
         <ConfigProvider locale={zhCN} theme={getAntThemeConfig(dark)}>
             <ProConfigProvider dark={dark}>
-                <App>
+                <App style={{ height: "100%" }}>
                     <QueryClientProvider client={queryClient}>
                         <ClientRootInit>{children}</ClientRootInit>
                     </QueryClientProvider>

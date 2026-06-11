@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, Home, ImageIcon, Images, List, Menu, MessageSquare, Music2, Plus, Redo2, Settings2, Trash2, Undo2, Upload, Video } from "lucide-react";
 import { saveAs } from "file-saver";
 
@@ -19,6 +19,7 @@ import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { canvasEditorHref } from "../canvas-routes";
 import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "../utils/canvas-image-data";
 import { fitNodeSize, nodeSizeFromRatio } from "../utils/canvas-node-size";
 import { App, Button, Dropdown, Modal } from "antd";
@@ -127,7 +128,7 @@ export default function CanvasPage() {
     return <InfiniteCanvasPage />;
 }
 
-function CanvasRefreshShell() {
+export function CanvasRefreshShell() {
     return (
         <main className="relative h-full min-h-0 overflow-hidden bg-background text-foreground">
             <div
@@ -207,9 +208,9 @@ function ConnectionCreateOption({ theme, icon, title, description, onClick }: { 
 
 function InfiniteCanvasPage() {
     const { message } = App.useApp();
-    const params = useParams<{ id: string }>();
+    const searchParams = useSearchParams();
     const router = useRouter();
-    const projectId = params.id;
+    const projectId = searchParams.get("id") || "";
     const containerRef = useRef<HTMLDivElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
     const uploadTargetRef = useRef<{ nodeId?: string; position?: Position } | null>(null);
@@ -898,7 +899,7 @@ function InfiniteCanvasPage() {
 
     const createAndOpenProject = useCallback(() => {
         const id = createProject(`无限画布 ${useCanvasStore.getState().projects.length + 1}`);
-        router.push(`/canvas/${id}`);
+        router.push(canvasEditorHref(id));
     }, [createProject, router]);
 
     const deleteCurrentProject = useCallback(() => {

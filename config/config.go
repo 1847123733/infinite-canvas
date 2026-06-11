@@ -12,7 +12,9 @@ import (
 )
 
 type Config struct {
+	Host                string `env:"HOST"`
 	Port                string `env:"PORT" envDefault:"8080"`
+	DesktopMode         bool   `env:"DESKTOP_MODE" envDefault:"false"`
 	AdminUsername       string `env:"ADMIN_USERNAME" envDefault:"admin"`
 	AdminPassword       string `env:"ADMIN_PASSWORD" envDefault:"infinite-canvas"`
 	JWTSecret           string `env:"JWT_SECRET" envDefault:"infinite-canvas"`

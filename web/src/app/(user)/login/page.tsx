@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { fetchCurrentUser } from "@/services/api/auth";
+import { appApiUrl } from "@/services/api/url";
 import { useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -125,7 +126,7 @@ function LoginContent() {
                             {mode === "register" ? "注册" : "登录"}
                         </Button>
                         {linuxDoEnabled ? (
-                            <Button block href={`/api/auth/linux-do/authorize?redirect=${encodeURIComponent(redirect)}`} icon={<img src="/icons/linuxdo.svg" alt="" width={18} height={18} />}>
+                            <Button block href={appApiUrl(`/api/auth/linux-do/authorize?redirect=${encodeURIComponent(redirect)}`)} icon={<img src="/icons/linuxdo.svg" alt="" width={18} height={18} />}>
                                 使用 Linux.do 登录
                             </Button>
                         ) : null}

@@ -10,6 +10,7 @@ import { setMediaBlob } from "@/services/file-storage";
 import { setImageBlob } from "@/services/image-storage";
 import { CanvasDeleteProjectsDialog } from "./components/canvas-delete-projects-dialog";
 import { CanvasProjectCard } from "./components/canvas-project-card";
+import { canvasEditorHref } from "./canvas-routes";
 import type { CanvasExportFile } from "./export-types";
 import { useCanvasStore } from "./stores/use-canvas-store";
 import { useCanvasUiStore } from "./stores/use-canvas-ui-store";
@@ -26,9 +27,7 @@ export default function CanvasPage() {
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
 
-    const enterProject = (id: string) => {
-        router.push(`/canvas/${id}`);
-    };
+    const enterProject = (id: string) => router.push(canvasEditorHref(id));
     const createAndEnter = () => enterProject(createProject(`无限画布 ${projects.length + 1}`));
     const importCanvas = async (file?: File) => {
         if (!file) return;

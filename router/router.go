@@ -12,10 +12,12 @@ func New() *gin.Engine {
 	router := gin.Default()
 	router.RedirectTrailingSlash = false
 	_ = router.SetTrustedProxies(nil)
+	router.Use(middleware.DesktopCORS)
 	api := router.Group("/api")
 	api.GET("/health", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
 	})
+	api.POST("/webdav-proxy", gin.WrapF(handler.WebdavProxy))
 	api.POST("/auth/register", gin.WrapF(handler.Register))
 	api.POST("/auth/login", gin.WrapF(handler.Login))
 	api.GET("/auth/linux-do/authorize", gin.WrapF(handler.LinuxDoAuthorize))

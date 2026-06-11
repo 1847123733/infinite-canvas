@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net"
 
 	"github.com/basketikun/infinite-canvas/config"
 	"github.com/basketikun/infinite-canvas/router"
@@ -16,5 +17,5 @@ func main() {
 		log.Fatal(err)
 	}
 	service.StartPromptSyncScheduler()
-	log.Fatal(router.New().Run(":" + config.Cfg.Port))
+	log.Fatal(router.New().Run(net.JoinHostPort(config.Cfg.Host, config.Cfg.Port)))
 }

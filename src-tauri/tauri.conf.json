@@ -1,0 +1,33 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "productName": "无限画布",
+    "version": "0.2.8",
+    "identifier": "com.wangxinkai.infinitecanvas",
+    "build": {
+        "beforeDevCommand": "node src-tauri/scripts/build-sidecar.mjs && bun run --cwd web dev",
+        "beforeBuildCommand": "node src-tauri/scripts/build-sidecar.mjs && bun run --cwd web build",
+        "devUrl": "http://localhost:3000",
+        "frontendDist": "../web/out"
+    },
+    "app": {
+        "windows": [
+            {
+                "label": "main",
+                "title": "无限画布",
+                "width": 1280,
+                "height": 820,
+                "minWidth": 1024,
+                "minHeight": 680
+            }
+        ],
+        "security": {
+            "csp": "default-src 'self' asset: http: https: data: blob:; connect-src ipc: http: https: ws: wss:; img-src 'self' asset: http: https: data: blob:; media-src 'self' asset: http: https: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:;"
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "nsis",
+        "publisher": "王鑫凯",
+        "externalBin": ["binaries/infinite-canvas-api"]
+    }
+}

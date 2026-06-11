@@ -1,5 +1,6 @@
 "use client";
 
+import { appApiUrl, isDesktopRuntime } from "@/services/api/url";
 import type { WebdavSyncConfig } from "@/stores/use-config-store";
 
 export const WEBDAV_MANIFEST_FILE_NAME = "manifest.json";
@@ -79,7 +80,10 @@ async function webdavFetch(config: WebdavSyncConfig, path: string, init: Request
     const timer = window.setTimeout(() => controller.abort(), WEBDAV_REQUEST_TIMEOUT_MS);
     try {
         const url = buildWebdavUrl(config, path);
-        if (config.proxyMode === "nextjs") return await fetch("/webdav-proxy", { method: "POST", headers: proxyHeaders(url, init.method || "GET", headers), body: proxyBody(init), signal: controller.signal });
+        if (config.proxyMode === "nextjs") {
+            const proxyUrl = isDesktopRuntime() ? appApiUrl("/api/webdav-proxy") : "/api/webdav-proxy";
+            return await fetch(proxyUrl, { method: "POST", headers: proxyHeaders(url, init.method || "GET", headers), body: proxyBody(init), signal: controller.signal });
+        }
         return await fetch(url, { ...init, headers, signal: controller.signal });
     } catch (error) {
         if (error instanceof Error && error.name === "AbortError") throw new Error("WebDAV 请求超时，请检查网络、代理或远端服务状态");

@@ -14,7 +14,8 @@ export default function nextConfig(phase: string): NextConfig {
     const releases = parseChangelog(localChangelog);
 
     return {
-        output: "standalone",
+        output: "export",
+        trailingSlash: true,
         allowedDevOrigins: isDev ? ["*.*.*.*"] : [],
         typescript: {
             ignoreBuildErrors: true,
@@ -22,6 +23,15 @@ export default function nextConfig(phase: string): NextConfig {
         env: {
             NEXT_PUBLIC_APP_VERSION: localVersion,
             NEXT_PUBLIC_APP_RELEASES: JSON.stringify(releases),
+        },
+        async rewrites() {
+            if (!isDev) return [];
+            return [
+                {
+                    source: "/api/:path*",
+                    destination: "http://localhost:8080/api/:path*",
+                },
+            ];
         },
     };
 }

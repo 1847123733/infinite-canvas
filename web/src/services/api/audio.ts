@@ -4,9 +4,10 @@ import { audioMimeType, normalizeAudioFormatValue, normalizeAudioSpeedValue, nor
 import { uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { buildApiUrl, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
+import { appApiUrl } from "@/services/api/url";
 
 function aiApiUrl(config: AiConfig, path: string) {
-    return config.channelMode === "remote" ? `/api/v1${path}` : buildApiUrl(config.baseUrl, path);
+    return config.channelMode === "remote" ? appApiUrl(`/api/v1${path}`) : buildApiUrl(config.baseUrl, path);
 }
 
 function aiHeaders(config: AiConfig) {

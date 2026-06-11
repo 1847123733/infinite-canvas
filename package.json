@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "dev": "bun x tauri dev",
+    "dev:api": "PORT=8080 go run .",
+    "dev:web": "bun run --cwd web dev",
+    "build:exe": "bun x tauri build",
+    "build:exe:debug": "bun x tauri build --debug"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2"
+  }
+}
