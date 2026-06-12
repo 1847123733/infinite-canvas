@@ -27,7 +27,7 @@ let config = {
   webHost: process.env.WEB_HOST || '127.0.0.1',
   webPort: parseInt(process.env.WEB_PORT || '3000'),
   appName: process.env.APP_NAME || 'Infinite Canvas',
-  appVersion: process.env.APP_VERSION || '0.2.5'
+  appVersion: app.getVersion()
 }
 
 // Get user data directory
@@ -302,7 +302,7 @@ function createWindow() {
   })
 
   // Load app
-  mainWindow.loadURL(`http://127.0.0.1:${config.webPort}`)
+  mainWindow.loadURL(`http://127.0.0.1:${config.webPort}/login`)
 
   // Show window when ready
   mainWindow.once('ready-to-show', () => {

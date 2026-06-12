@@ -1,12 +1,12 @@
 import { execSync } from 'child_process'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { existsSync, mkdirSync, copyFileSync, cpSync, rmSync, writeFileSync } from 'fs'
-import { execPath } from 'process'
+import { existsSync, mkdirSync, copyFileSync, cpSync, rmSync, writeFileSync, readFileSync } from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const projectRoot = join(__dirname, '../..')
+const desktopPackage = JSON.parse(readFileSync(join(projectRoot, 'desktop', 'package.json'), 'utf8'))
 
 console.log('Building Next.js application...')
 
@@ -29,7 +29,8 @@ try {
     stdio: 'inherit',
     env: {
       ...process.env,
-      OUTPUT_STANDALONE: 'true'
+      OUTPUT_STANDALONE: 'true',
+      NEXT_PUBLIC_APP_VERSION: desktopPackage.version
     }
   })
 

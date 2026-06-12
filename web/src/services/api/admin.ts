@@ -220,6 +220,20 @@ export async function saveAdminSettings(token: string, settings: AdminSettings) 
     return apiPost<AdminSettings>("/api/admin/settings", settings, token);
 }
 
+export type AdminExternalLLMSyncResult = {
+    channels: number;
+    chatModels: number;
+    imageModels: number;
+    videoModels: number;
+    defaultTextModel: string;
+    defaultImageModel: string;
+    skipped: string[];
+};
+
+export async function syncExternalLLMSettings(token: string) {
+    return apiPost<AdminExternalLLMSyncResult>("/api/admin/settings/external-sync", undefined, token);
+}
+
 export type AdminChannelActionRequest = {
     index?: number;
     channel: AdminModelChannel;

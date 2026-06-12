@@ -29,7 +29,8 @@ type TokenClaims struct {
 }
 
 type userExtra struct {
-	LinuxDo any `json:"linuxDo,omitempty"`
+	LinuxDo      any                `json:"linuxDo,omitempty"`
+	ExternalVben *externalVbenExtra `json:"externalVben,omitempty"`
 }
 
 func EnsureDefaultAdmin() error {
@@ -101,24 +102,35 @@ func Register(username string, password string) (model.AuthSession, error) {
 }
 
 func Login(username string, password string) (model.AuthSession, error) {
-	user, ok, err := repository.GetUserByUsername(strings.TrimSpace(username))
+	username = strings.TrimSpace(username)
+	if strings.ContainsAny(username, " \t\r\n") {
+		return model.AuthSession{}, safeMessageError{message: "用户名不能包含空格"}
+	}
+	if username == "" || password == "" {
+		return model.AuthSession{}, safeMessageError{message: "用户名和密码不能为空"}
+	}
+	session, handled, err := loginWithExternalVben(username, password)
+	if handled {
+		return session, err
+	}
+	user, ok, err := repository.GetUserByUsername(username)
 	if err != nil {
 		return model.AuthSession{}, err
 	}
-	if !ok || bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)) != nil {
-		return model.AuthSession{}, safeMessageError{message: "用户名或密码错误"}
+	if ok && bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)) == nil {
+		if user.Status == model.UserStatusBan {
+			return model.AuthSession{}, safeMessageError{message: "账号已被禁用"}
+		}
+		normalizeUserDefaults(&user)
+		user.LastLoginAt = now()
+		user.UpdatedAt = now()
+		user, err = repository.SaveUser(user)
+		if err != nil {
+			return model.AuthSession{}, err
+		}
+		return newSession(user)
 	}
-	if user.Status == model.UserStatusBan {
-		return model.AuthSession{}, safeMessageError{message: "账号已被禁用"}
-	}
-	normalizeUserDefaults(&user)
-	user.LastLoginAt = now()
-	user.UpdatedAt = now()
-	user, err = repository.SaveUser(user)
-	if err != nil {
-		return model.AuthSession{}, err
-	}
-	return newSession(user)
+	return model.AuthSession{}, safeMessageError{message: "用户名或密码错误"}
 }
 
 func LinuxDoAuthorizeURL(r *http.Request, redirect string) (string, error) {
