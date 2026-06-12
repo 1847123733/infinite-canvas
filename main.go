@@ -16,5 +16,7 @@ func main() {
 		log.Fatal(err)
 	}
 	service.StartPromptSyncScheduler()
-	log.Fatal(router.New().Run(":" + config.Cfg.Port))
+	addr := config.Cfg.BindAddr + ":" + config.Cfg.Port
+	log.Printf("Starting server on %s", addr)
+	log.Fatal(router.New().Run(addr))
 }

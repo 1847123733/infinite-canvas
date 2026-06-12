@@ -1,0 +1,82 @@
+# Electron Builder Configuration
+
+appId: com.infinitecanvas.app
+productName: Infinite Canvas
+copyright: Copyright © 2024 Infinite Canvas Team
+
+directories:
+  buildResources: build
+  output: dist-electron
+
+files:
+  - out/**/*
+  - resources/**/*
+
+extraResources:
+  - from: resources/api
+    to: resources/api
+  - from: resources/web
+    to: resources/web
+
+asar: true
+asarUnpack:
+  - resources/api/**
+  - resources/web/**
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+  category: public.app-category.productivity
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  icon: build/icon.png
+  category: Utility
+  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  runAfterFinish: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  perMachine: false
+
+dmg:
+  title: ${productName} ${version}
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+publish:
+  provider: github
+  owner: basketikun
+  repo: infinite-canvas

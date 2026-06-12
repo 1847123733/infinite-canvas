@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+dist-electron/
+resources/api/**
+resources/web/**
+!resources/api/.gitkeep
+!resources/web/.gitkeep
+
+# Environment
+.env
+.env.local
+.env.*.local
+.npmrc
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build cache
+.cache/
+.next/
+out/
+
+# Temporary files
+*.tmp
+*.temp

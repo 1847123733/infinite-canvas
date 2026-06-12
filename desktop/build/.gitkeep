@@ -1,0 +1,9 @@
+# This directory should contain application icons:
+# - icon.ico (Windows)
+# - icon.icns (macOS)
+# - icon.png (Linux)
+
+# You can generate these from a 1024x1024 PNG using various online tools
+# or install the electron-icon-builder package:
+# npm install --save-dev electron-icon-builder
+# npx electron-icon-builder --input=icon.png --output=build
