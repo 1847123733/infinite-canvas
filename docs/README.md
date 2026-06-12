@@ -19,18 +19,6 @@ bun run build
 bun run start
 ```
 
-Run the published image with Docker Compose:
-
-```bash
-docker compose up -d
-```
-
-Or build locally with Docker Compose:
-
-```bash
-docker compose -f docker-compose.local.yml up -d --build
-```
-
 ## Explore
 
 In the project, you can see:

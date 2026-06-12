@@ -221,12 +221,6 @@ console.log(window.electronAPI.arch)     // x64, arm64
 - Electron 窗口使用 `contextIsolation` 和 `nodeIntegration: false`
 - 敏感配置存储在系统 UserData 目录
 
-## 构建 Docker 镜像（可选）
-
-```bash
-docker build -t infinite-canvas-desktop .
-```
-
 ## 许可证
 
 MIT

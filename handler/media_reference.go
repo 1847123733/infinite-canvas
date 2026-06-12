@@ -132,9 +132,6 @@ func referenceDataDir() string {
 			return filepath.Dir(pathPart)
 		}
 	}
-	if _, err := os.Stat("/app/data"); err == nil {
-		return "/app/data"
-	}
 	return "data"
 }
 

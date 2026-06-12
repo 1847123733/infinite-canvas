@@ -6,11 +6,9 @@
 
 <p align="center">
   <a href="https://linux.do/"><img src="https://img.shields.io/badge/Linux.do-Community-2b6de8?style=flat-square" alt="Linux.do"></a>
-  <a href="https://render.com/deploy?repo=https://github.com/basketikun/infinite-canvas"><img src="https://img.shields.io/badge/Render-Deploy-46e3b7?style=flat-square&logo=render&logoColor=111111" alt="Deploy to Render"></a>
   <a href="https://github.com/basketikun/infinite-canvas"><img src="https://img.shields.io/github/stars/basketikun/infinite-canvas?style=flat-square&logo=github" alt="GitHub stars"></a>
   <a href="VERSION"><img src="https://img.shields.io/badge/version-v0.2.0-2563eb?style=flat-square" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-f97316?style=flat-square" alt="License"></a>
-  <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-ready-2496ed?style=flat-square&logo=docker&logoColor=white" alt="Docker ready"></a>
   <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-16.2-000000?style=flat-square&logo=nextdotjs" alt="Next.js"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25-00add8?style=flat-square&logo=go&logoColor=white" alt="Go"></a>
 </p>
@@ -37,30 +35,26 @@
 
 - 前端：Next.js、React、TypeScript、Tailwind CSS、Ant Design、Zustand、TanStack Query。
 - 后端：Go、Gin、GORM。
-- 部署：Docker。
+- 桌面端：Electron。
 
 ## 快速开始
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/basketikun/infinite-canvas)
-
 ```bash
 git clone git@github.com:basketikun/infinite-canvas.git
-cd infinite-canvas
+cd infinite-canvas/desktop
+npm install
 cp .env.example .env
-# 修改默认账号密码等信息
-docker-compose up -d
+npm run build:all
+npm run dev
 ```
 
-本地源码构建运行：
+构建桌面安装包：
 
 ```bash
-cp .env.example .env
-docker compose -f docker-compose.local.yml up -d --build
+npm run dist
 ```
 
-运行后默认端口3000，可访问 `http://localhost:3000`。
-
-如需要拉取提示词，可前往:`http://localhost:3000/admin/prompts`
+应用会自动拉起本地 Go API 和 Next.js，并打开桌面窗口。SQLite 数据默认保存在系统 `userData/data/infinite-canvas.db`。
 
 ## New API 自动配置
 

@@ -5,37 +5,23 @@ description: 用最少步骤把无限画布跑起来
 
 # 快速开始
 
-如果你只是想先把项目跑起来，优先使用 Docker。
+当前项目以 desktop 桌面版为主，推荐直接运行 Electron 应用。
 
-## Docker 启动
+## 桌面版启动
 
 ```bash
 git clone git@github.com:basketikun/infinite-canvas.git
-cd infinite-canvas
+cd infinite-canvas/desktop
+npm install
 cp .env.example .env
-docker compose up -d
+npm run build:all
+npm run dev
 ```
 
-启动后访问：
-
-```text
-http://localhost:3000
-```
-
-默认管理员账号：
-
-```text
-用户名：admin
-密码：.env 中的 ADMIN_PASSWORD
-```
-
-## 本地构建镜像启动
-
-如果你需要基于当前源码本地构建镜像：
+如需打包安装包：
 
 ```bash
-cp .env.example .env
-docker compose -f docker-compose.local.yml up -d --build
+npm run dist
 ```
 
 ## 首次使用建议
@@ -48,3 +34,4 @@ docker compose -f docker-compose.local.yml up -d --build
 
 - 当前画布项目和“我的素材”主要保存在浏览器本地，不支持云同步。
 - 本地直连模式下，AI API Key 保存在浏览器本地，并由前端直接请求 OpenAI 兼容接口。
+- 桌面版会在本机自动启动内置 Go API 和 Next.js，SQLite 数据默认保存在系统 `userData/data/infinite-canvas.db`。
