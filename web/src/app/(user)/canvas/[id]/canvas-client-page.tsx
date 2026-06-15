@@ -2685,7 +2685,7 @@ function CanvasTopBar({
                         menu={{
                             items: [
                                 { key: "home", icon: <Home className="size-4" />, label: "主页", onClick: onHome },
-                                { key: "docs", icon: <BookOpen className="size-4" />, label: "文档", onClick: () => window.open(DOCS_URL, "_blank", "noopener,noreferrer") },
+                                // { key: "docs", icon: <BookOpen className="size-4" />, label: "文档", onClick: () => window.open(DOCS_URL, "_blank", "noopener,noreferrer") },
                                 { key: "projects", icon: <Images className="size-4" />, label: "我的画布", onClick: onProjects },
                                 { type: "divider" },
                                 { key: "new", icon: <Plus className="size-4" />, label: "新建画布", onClick: onCreateProject },
@@ -2742,7 +2742,7 @@ function CanvasTopBar({
                             setAccountOpen(false);
                         }}
                     />
-                    {assistantCollapsed ? (
+                    {/* {assistantCollapsed ? (
                         <>
                             <span className="h-6 w-px" style={{ background: theme.toolbar.border }} />
                             <Button
@@ -2755,7 +2755,7 @@ function CanvasTopBar({
                                 助手
                             </Button>
                         </>
-                    ) : null}
+                    ) : null} */}
                 </div>
             </div>
             <Modal title="快捷键" open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
@@ -2772,7 +2772,7 @@ function CanvasTopBar({
                     <Shortcut keys={["Ctrl / Cmd", "Y"]} value="重做" />
                     <Shortcut keys={["Delete / Backspace"]} value="删除选中" />
                     <Shortcut keys={["Esc"]} value="取消选择并关闭浮层" />
-                    <Shortcut keys={["拖入图片/视频/音频"]} value="上传到画布" />
+                    <Shortcut keys={["拖入图片"]} value="上传到画布" />
                 </div>
             </Modal>
         </>

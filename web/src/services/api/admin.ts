@@ -21,7 +21,6 @@ export type AdminUser = {
     affCode: string;
     affCount: number;
     inviterId: string;
-    linuxDoId: string;
     status: "active" | "ban";
     lastLoginAt: string;
     createdAt: string;
@@ -185,12 +184,6 @@ export type AdminModelCost = {
 
 export type AdminPublicSettings = {
     modelChannel: AdminPublicModelChannelSettings;
-    auth: {
-        allowRegister: boolean;
-        linuxDo: {
-            enabled: boolean;
-        };
-    };
 };
 
 export type AdminPrivateSettings = {
@@ -198,12 +191,6 @@ export type AdminPrivateSettings = {
     promptSync: {
         enabled: boolean;
         cron: string;
-    };
-    auth: {
-        linuxDo: {
-            clientId: string;
-            clientSecret: string;
-        };
     };
 };
 

@@ -8,7 +8,6 @@ import { motion } from "motion/react";
 import { ImageGenerationPending } from "@/components/image-generation-pending";
 import { ModelPicker } from "@/components/model-picker";
 import { useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
-import { CreditSymbol, requestCreditCost } from "@/constant/credits";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { nanoid } from "nanoid";
 import { cn } from "@/lib/utils";
@@ -20,7 +19,6 @@ import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import type { ReferenceImage } from "@/types/image";
 import { DiaTextReveal } from "@/components/ui/dia-text-reveal";
 import { CanvasImageSettingsPopover } from "./canvas-image-settings-popover";
-import { CanvasPromptLibrary } from "./canvas-prompt-library";
 import { CanvasNodeType, type CanvasAssistantImage, type CanvasAssistantMessage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasNodeData } from "../types";
 
 type AssistantMode = "ask" | "image";
@@ -44,7 +42,6 @@ type CanvasAssistantPanelProps = {
 export function CanvasAssistantPanel({ nodes, selectedNodeIds, sessions, activeSessionId, onSelectNodeIds, onSessionsChange, onInsertImage, onInsertText, onPasteImage, onCollapseStart, onCollapse }: CanvasAssistantPanelProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const effectiveConfig = useEffectiveConfig();
-    const modelCosts = useConfigStore((state) => state.publicSettings?.modelChannel.modelCosts);
     const cleanupImages = useAssetStore((state) => state.cleanupImages);
     const updateConfig = useConfigStore((state) => state.updateConfig);
     const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
@@ -176,7 +173,7 @@ export function CanvasAssistantPanel({ nodes, selectedNodeIds, sessions, activeS
                 return;
             }
 
-            const answer = await requestImageQuestion(requestConfig, await buildChatMessages([...history, userMessage]), (streamed) => {
+            const answer = await requestImageQuestion(requestConfig, await buildChatMessages([...history, userMessage], requestConfig.model), (streamed) => {
                 updateMessage(session.id, assistantId, { text: streamed, isLoading: false });
             });
             updateMessage(session.id, assistantId, { text: answer, isLoading: false });
@@ -331,7 +328,6 @@ export function CanvasAssistantPanel({ nodes, selectedNodeIds, sessions, activeS
                             if (selectedNodeIds.has(id)) onSelectNodeIds(new Set(Array.from(selectedNodeIds).filter((nodeId) => nodeId !== id)));
                         }}
                         onPasteImage={onPasteImage}
-                        modelCosts={modelCosts}
                     />
                 ) : null}
 
@@ -376,7 +372,6 @@ function AssistantComposer({
     onMissingConfig,
     onRemoveReference,
     onPasteImage,
-    modelCosts,
 }: {
     mode: AssistantMode;
     prompt: string;
@@ -390,11 +385,8 @@ function AssistantComposer({
     onMissingConfig: () => void;
     onRemoveReference: (id: string) => void;
     onPasteImage: (file: File) => void;
-    modelCosts?: { model: string; credits: number }[];
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const activeModel = mode === "image" ? config.imageModel || config.model : config.textModel || config.model;
-    const credits = requestCreditCost({ channelMode: config.channelMode, modelCosts, model: activeModel, count: mode === "image" ? config.count : 1 });
 
     return (
         <div className="px-2 pb-2" onWheelCapture={(event) => event.stopPropagation()}>
@@ -426,7 +418,6 @@ function AssistantComposer({
                 />
                 <div className="mt-2 flex items-center justify-between gap-2">
                     <div className="canvas-composer-tools flex min-w-0 flex-1 items-center gap-1">
-                        <CanvasPromptLibrary onSelect={onPromptChange} />
                         <AssistantModeSwitch mode={mode} theme={theme} onChange={onModeChange} />
                         {mode === "image" ? (
                             <>
@@ -445,10 +436,6 @@ function AssistantComposer({
                         aria-label="发送"
                     >
                         <span className="flex items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 text-xs font-medium tabular-nums">
-                                <CreditSymbol />
-                                {credits.toLocaleString()}
-                            </span>
                             {isRunning ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
                         </span>
                     </Button>
@@ -648,21 +635,43 @@ function buildAssistantReferences(nodes: CanvasNodeData[], selectedNodeIds: Set<
         .filter((item): item is CanvasAssistantReference => Boolean(item));
 }
 
-async function buildChatMessages(messages: CanvasAssistantMessage[]): Promise<ChatCompletionMessage[]> {
+async function buildChatMessages(messages: CanvasAssistantMessage[], model: string): Promise<ChatCompletionMessage[]> {
     return Promise.all(
         messages.map(async (message, index) => {
             if (message.role === "assistant") return { role: "assistant", content: message.text };
             if (index !== messages.length - 1) return { role: "user", content: message.text };
             const refs = message.references || [];
+            const imageRefs = refs.filter((item) => item.dataUrl);
+            if (imageRefs.length && !supportsVisionChatModel(model)) {
+                throw new Error(`当前文本模型 ${model} 不支持读图，请切换到支持视觉理解的模型后再提问`);
+            }
             return {
                 role: "user",
                 content: [
                     ...refs.flatMap((item) => (item.text ? [{ type: "text" as const, text: item.text }] : [])),
                     { type: "text", text: message.text },
-                    ...(await Promise.all(refs.filter((item) => item.dataUrl).map(async (item) => ({ type: "image_url" as const, image_url: { url: await imageToDataUrl(item) } })))),
+                    ...(await Promise.all(imageRefs.map(async (item) => ({ type: "image_url" as const, image_url: { url: await imageToDataUrl(item) } })))),
                 ],
             };
         }),
+    );
+}
+
+function supportsVisionChatModel(model: string) {
+    const value = model.trim().toLowerCase();
+    if (!value) return false;
+    return (
+        value.includes("gpt-4o") ||
+        value.includes("gpt-4.1") ||
+        value.includes("vision") ||
+        value.includes("vl") ||
+        value.includes("gemini") ||
+        value.includes("claude") ||
+        value.includes("glm-4v") ||
+        value.includes("qwen-vl") ||
+        value.includes("doubao-vision") ||
+        value.includes("internvl") ||
+        value.includes("pixtral")
     );
 }
 

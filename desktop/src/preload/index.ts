@@ -18,6 +18,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   arch: process.arch
 })
 
+contextBridge.exposeInMainWorld('desktopAuth', {
+  getSession: () => ipcRenderer.invoke('desktop-auth-get-session'),
+  saveSession: (input: { sessionId: string; refreshToken: string }) => ipcRenderer.invoke('desktop-auth-save-session', input),
+  clearSession: () => ipcRenderer.invoke('desktop-auth-clear-session')
+})
+
+contextBridge.exposeInMainWorld('desktopApp', {
+  getDeviceId: () => ipcRenderer.invoke('desktop-app-get-device-id'),
+  getVersion: () => ipcRenderer.invoke('desktop-app-get-version'),
+  getCloudBaseUrl: () => ipcRenderer.invoke('desktop-app-get-cloud-base-url')
+})
+
 // TypeScript types for the exposed API
 declare global {
   interface Window {
@@ -29,6 +41,7 @@ declare global {
         version: string
         apiPort: number
         webPort: number
+        cloudBaseUrl: string
         userDataPath: string
       }>
       restartServers: () => Promise<{
@@ -39,6 +52,16 @@ declare global {
       }>
       platform: string
       arch: string
+    }
+    desktopAuth: {
+      getSession: () => Promise<{ sessionId: string; refreshToken: string } | null>
+      saveSession: (input: { sessionId: string; refreshToken: string }) => Promise<boolean>
+      clearSession: () => Promise<boolean>
+    }
+    desktopApp: {
+      getDeviceId: () => Promise<string>
+      getVersion: () => Promise<string>
+      getCloudBaseUrl: () => Promise<string>
     }
   }
 }

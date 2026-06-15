@@ -29,7 +29,7 @@ description: 当前后端主要数据表与字段说明
 
 ### users
 
-系统用户表。用户基础信息、角色、算力点余额和第三方登录标识放在该表中。
+系统用户表。当前仅保留本地后台和历史数据所需的用户基础信息。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -45,11 +45,10 @@ description: 当前后端主要数据表与字段说明
 | `aff_count` | number | 已邀请用户数量，冗余统计字段 |
 | `inviter_id` | string | 邀请人用户 ID |
 | `github_id` | string | GitHub 用户 ID |
-| `linux_do_id` | string | Linux.do 用户 ID |
 | `wechat_id` | string | 微信用户 ID |
 | `status` | string | 用户状态：`active`、`ban` |
 | `last_login_at` | string | 最近登录时间 |
-| `extra` | json | 扩展信息，第三方资料按平台命名空间保存，如 `linuxDo` |
+| `extra` | json | 扩展信息 |
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
 
@@ -100,8 +99,8 @@ description: 当前后端主要数据表与字段说明
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
 
-`public.value` 常放前端展示和可公开读取的配置，例如模型列表、登录开关等。  
-`private.value` 常放渠道密钥、登录密钥、后台内部开关等。
+`public.value` 常放前端展示和可公开读取的配置，例如模型列表。  
+`private.value` 常放渠道密钥和后台内部开关等。
 
 当前系统设置接口会按后端结构体序列化和反序列化已知字段；数据库 JSON 中额外存在的旧字段会被忽略。
 
@@ -110,7 +109,6 @@ description: 当前后端主要数据表与字段说明
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `modelChannel` | object | 模型渠道公开配置组 |
-| `auth` | object | 公开登录配置 |
 
 `modelChannel` 当前字段：
 
@@ -132,19 +130,12 @@ description: 当前后端主要数据表与字段说明
 | `model` | string | 模型名称 |
 | `credits` | number | 每次后端模型接口调用前预扣的算力点，未配置默认不扣除 |
 
-`auth.linuxDo` 当前字段：
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `enabled` | bool | 是否开启 Linux.do 登录 |
-
 `private.value` 当前字段：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `channels` | object[] | 模型渠道配置列表 |
 | `promptSync` | object | GitHub 远程提示词定时同步配置 |
-| `auth` | object | 私有登录配置 |
 
 `channels` 每项字段：
 
@@ -165,13 +156,6 @@ description: 当前后端主要数据表与字段说明
 | --- | --- | --- |
 | `enabled` | bool | 是否开启定时同步，默认开启 |
 | `cron` | string | Cron 表达式，默认每 5 分钟 |
-
-`auth.linuxDo` 当前字段：
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `clientId` | string | Linux.do OAuth App Client ID |
-| `clientSecret` | string | Linux.do OAuth App Client Secret，后台返回时隐藏 |
 
 后端请求模型时，先按模型名筛选启用且包含该模型的渠道，再按 `weight` 加权随机选择一个渠道。
 

@@ -52,6 +52,7 @@ function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProg
 export function AppConfigModal() {
     const { message } = App.useApp();
     const [loadingModels, setLoadingModels] = useState(false);
+    const [syncingCloudModels, setSyncingCloudModels] = useState(false);
     const [testingWebdav, setTestingWebdav] = useState(false);
     const [syncingWebdav, setSyncingWebdav] = useState(false);
     const [webdavSyncStatus, setWebdavSyncStatus] = useState("");
@@ -65,6 +66,8 @@ export function AppConfigModal() {
     const setConfigDialogOpen = useConfigStore((state) => state.setConfigDialogOpen);
     const clearPromptContinue = useConfigStore((state) => state.clearPromptContinue);
     const publicSettings = useConfigStore((state) => state.publicSettings);
+    const isPublicSettingsLoading = useConfigStore((state) => state.isPublicSettingsLoading);
+    const syncPublicSettings = useConfigStore((state) => state.syncPublicSettings);
     const effectiveConfig = useEffectiveConfig();
     const modelChannel = publicSettings?.modelChannel;
     const allowCustomChannel = modelChannel?.allowCustomChannel === true;
@@ -105,6 +108,19 @@ export function AppConfigModal() {
             message.error(error instanceof Error ? error.message : "读取模型失败");
         } finally {
             setLoadingModels(false);
+        }
+    };
+
+    const syncCloudModels = async () => {
+        if (effectiveMode !== "remote") return;
+        setSyncingCloudModels(true);
+        try {
+            const settings = await syncPublicSettings();
+            message.success(`已同步云端控制 LLM 配置，当前可用 ${settings.modelChannel.availableModels.length} 个模型`);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "同步云端控制 LLM 配置失败");
+        } finally {
+            setSyncingCloudModels(false);
         }
     };
 
@@ -222,8 +238,16 @@ export function AppConfigModal() {
                         </>
                     ) : (
                         <div className="mb-5 rounded-lg border border-stone-200 p-3 text-sm text-stone-500 dark:border-stone-800">
-                            <div className="font-medium text-stone-900 dark:text-stone-100">云端渠道</div>
-                            <div className="mt-1">由系统后台渠道转发请求，当前可用 {modelChannel?.availableModels.length || 0} 个模型。</div>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <div className="font-medium text-stone-900 dark:text-stone-100">云端渠道</div>
+                                    <div className="mt-1">由系统后台渠道转发请求，当前可用 {modelChannel?.availableModels.length || 0} 个模型。</div>
+                                    <div className="mt-1 text-xs text-stone-400">点击后会先把云端控制的 LLM 配置同步到本地缓存，再刷新当前可用模型；所有用户都可以使用。</div>
+                                </div>
+                                <Button size="small" loading={syncingCloudModels || isPublicSettingsLoading} onClick={() => void syncCloudModels()}>
+                                    同步云端控制 LLM 配置
+                                </Button>
+                            </div>
                         </div>
                     )}
                     {effectiveMode === "local" ? (

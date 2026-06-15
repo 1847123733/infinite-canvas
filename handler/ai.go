@@ -75,13 +75,16 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		Fail(w, "未登录或权限不足")
 		return
 	}
-	credits, err := service.ModelCost(modelName)
-	if err != nil {
-		log.Printf("AI proxy read model cost failed: model=%s err=%v", modelName, err)
-		Fail(w, "AI 接口请求失败")
-		return
+	credits := 0
+	if !service.IsDesktopCloudUserID(user.ID) {
+		credits, err = service.ModelCost(modelName)
+		if err != nil {
+			log.Printf("AI proxy read model cost failed: model=%s err=%v", modelName, err)
+			Fail(w, "AI 接口请求失败")
+			return
+		}
+		credits *= readAIRequestCount(body, contentType)
 	}
-	credits *= readAIRequestCount(body, contentType)
 	channel, err := service.SelectModelChannel(modelName)
 	if err != nil {
 		log.Printf("AI proxy select channel failed: model=%s err=%v", modelName, err)

@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { apiGet } from "@/services/api/request";
 import type { AdminPublicSettings } from "@/services/api/admin";
+import { fetchPublicSettings, syncCloudControlledSettings } from "@/services/api/settings";
 
 export type AiConfig = {
     channelMode: "remote" | "local";
@@ -96,6 +96,7 @@ type ConfigStore = {
     updateConfig: <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
     updateWebdavConfig: <K extends keyof WebdavSyncConfig>(key: K, value: WebdavSyncConfig[K]) => void;
     loadPublicSettings: () => Promise<void>;
+    syncPublicSettings: () => Promise<AdminPublicSettings>;
     isAiConfigReady: (config: AiConfig, model: string) => boolean;
     openConfigDialog: (shouldPromptContinue?: boolean) => void;
     setConfigDialogOpen: (isOpen: boolean) => void;
@@ -211,7 +212,20 @@ export const useConfigStore = create<ConfigStore>()(
                 if (get().isPublicSettingsLoading) return;
                 set({ isPublicSettingsLoading: true });
                 try {
-                    set({ publicSettings: await apiGet<AdminPublicSettings>("/api/settings") });
+                    set({ publicSettings: await fetchPublicSettings() });
+                } finally {
+                    set({ isPublicSettingsLoading: false });
+                }
+            },
+            syncPublicSettings: async () => {
+                if (get().isPublicSettingsLoading) {
+                    return get().publicSettings || fetchPublicSettings();
+                }
+                set({ isPublicSettingsLoading: true });
+                try {
+                    const publicSettings = await syncCloudControlledSettings();
+                    set({ publicSettings });
+                    return publicSettings;
                 } finally {
                     set({ isPublicSettingsLoading: false });
                 }

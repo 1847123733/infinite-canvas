@@ -9,6 +9,28 @@ const projectRoot = join(__dirname, '../..')
 
 console.log('Building Go API server...')
 
+function stopLockedWindowsApi(targetPath) {
+  if (process.platform !== 'win32') return
+  const escapedPath = targetPath.replace(/'/g, "''")
+  try {
+    const output = execSync(
+      `powershell -NoProfile -Command "(Get-Process | Where-Object { $_.Path -eq '${escapedPath}' } | Select-Object -ExpandProperty Id)"`,
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+    ).trim()
+    if (!output) return
+    const pids = output
+      .split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter(Boolean)
+    for (const pid of pids) {
+      console.log(`Stopping locked API process: ${pid}`)
+      execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' })
+    }
+  } catch {
+    // Ignore process lookup failures and let copy step surface any remaining lock.
+  }
+}
+
 try {
   // Build Go binary for current platform
   const buildCommand = process.platform === 'win32'
@@ -34,6 +56,8 @@ try {
   if (!existsSync(targetDir)) {
     mkdirSync(targetDir, { recursive: true })
   }
+
+  stopLockedWindowsApi(targetPath)
 
   // Copy binary
   cpSync(sourcePath, targetPath)

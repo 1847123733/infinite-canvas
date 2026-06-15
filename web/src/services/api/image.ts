@@ -1,7 +1,9 @@
 import axios from "axios";
 
+import { refreshRemoteUser, remoteAuthToken } from "@/services/api/ai-auth";
+import { createCloudGenerationTicket } from "@/services/api/cloud-generation";
 import { buildApiUrl, type AiConfig } from "@/stores/use-config-store";
-import { useUserStore } from "@/stores/use-user-store";
+import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
@@ -173,7 +175,7 @@ function aiApiUrl(config: AiConfig, path: string) {
 }
 
 function aiHeaders(config: AiConfig, contentType?: string) {
-    const token = useUserStore.getState().token;
+    const token = remoteAuthToken();
     return config.channelMode === "remote"
         ? {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -185,8 +187,49 @@ function aiHeaders(config: AiConfig, contentType?: string) {
           };
 }
 
-function refreshRemoteUser(config: AiConfig) {
-    if (config.channelMode === "remote") void useUserStore.getState().hydrateUser();
+function shouldUseDesktopCloudTicketFlow(config: AiConfig) {
+    const cloud = useCloudAuthStore.getState();
+    return config.channelMode === "remote" && cloud.isDesktopCloud && Boolean(cloud.accessToken) && Boolean(cloud.cloudBaseUrl) && typeof window !== "undefined" && Boolean(window.desktopApp);
+}
+
+function inferDesktopGenerationScene(): "canvas" | "image_workbench" {
+    if (typeof window === "undefined") return "canvas";
+    return window.location.pathname.startsWith("/image") ? "image_workbench" : "canvas";
+}
+
+async function requestDesktopCloudImage(
+    config: AiConfig,
+    userPrompt: string,
+    finalPrompt: string,
+    references: ReferenceImage[],
+    requestMeta: Record<string, unknown>,
+    mask?: ReferenceImage,
+) {
+    const cloud = useCloudAuthStore.getState();
+    if (!cloud.accessToken || !cloud.cloudBaseUrl || !window.desktopApp) {
+        throw new Error("桌面云端登录已失效，请重新登录");
+    }
+    const deviceId = await window.desktopApp.getDeviceId();
+    const ticket = await createCloudGenerationTicket(cloud.cloudBaseUrl, cloud.accessToken, {
+        modelId: config.model,
+        scene: inferDesktopGenerationScene(),
+        userPrompt,
+        finalPrompt,
+        requestMeta,
+    });
+    const formData = new FormData();
+    formData.set("ticket_id", ticket.ticketId);
+    formData.set("ticket_token", ticket.ticketToken);
+    formData.set("device_id", deviceId);
+    const files = await Promise.all(references.map(async (image) => dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) })));
+    files.forEach((file) => formData.append("reference_images", file));
+    if (mask) formData.set("mask", dataUrlToFile(mask));
+    const response = await axios.post<ImageApiResponse>("/api/v1/desktop/images/generations", formData, {
+        headers: {
+            Authorization: `Bearer ${cloud.accessToken}`,
+        },
+    });
+    return parseImagePayload(response.data);
 }
 
 function withSystemMessage(config: AiConfig, messages: ChatCompletionMessage[]) {
@@ -199,6 +242,14 @@ export async function requestGeneration(config: AiConfig, prompt: string) {
     const quality = normalizeQuality(config.quality);
     const requestSize = resolveRequestSize(quality, config.size);
     try {
+        if (shouldUseDesktopCloudTicketFlow(config)) {
+            const images = await requestDesktopCloudImage(config, prompt, withSystemPrompt(config, prompt), [], {
+                ...(quality ? { quality } : {}),
+                ...(requestSize ? { size: requestSize } : {}),
+            });
+            refreshRemoteUser(config);
+            return images;
+        }
         const response = await axios.post<ImageApiResponse>(
             aiApiUrl(config, "/images/generations"),
             {
@@ -227,9 +278,31 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
     const quality = normalizeQuality(config.quality);
     const requestSize = resolveRequestSize(quality, config.size);
     const requestPrompt = buildImageReferencePromptText(prompt, references);
+    const finalPrompt = withSystemPrompt(config, requestPrompt);
+    if (shouldUseDesktopCloudTicketFlow(config)) {
+        try {
+            const images = await requestDesktopCloudImage(
+                config,
+                prompt,
+                finalPrompt,
+                references,
+                {
+                    ...(quality ? { quality } : {}),
+                    ...(requestSize ? { size: requestSize } : {}),
+                    referenceImageCount: references.length,
+                    ...(mask ? { hasMask: true } : {}),
+                },
+                mask,
+            );
+            refreshRemoteUser(config);
+            return images;
+        } catch (error) {
+            throw new Error(readAxiosError(error, "请求失败"));
+        }
+    }
     const formData = new FormData();
     formData.set("model", config.model);
-    formData.set("prompt", withSystemPrompt(config, requestPrompt));
+    formData.set("prompt", finalPrompt);
     formData.set("n", String(n));
     formData.set("response_format", "b64_json");
     formData.set("output_format", IMAGE_OUTPUT_FORMAT);

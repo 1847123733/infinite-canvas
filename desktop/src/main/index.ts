@@ -4,6 +4,8 @@ import { spawn } from 'child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import Store from 'electron-store'
 import portfinder from 'portfinder'
+import { clearCloudSession, getCloudSession, setCloudSession } from './cloud-session-store'
+import { getDeviceId } from './device-id'
 
 // Guard: ELECTRON_RUN_AS_NODE breaks Electron's module system
 // (commonly set by VS Code's integrated terminal)
@@ -26,6 +28,7 @@ let config = {
   apiPort: parseInt(process.env.API_PORT || '8080'),
   webHost: process.env.WEB_HOST || '127.0.0.1',
   webPort: parseInt(process.env.WEB_PORT || '3000'),
+  cloudBaseUrl: (process.env.INFINITE_CANVAS_CLOUD_BASE_URL || '').trim(),
   appName: process.env.APP_NAME || 'Infinite Canvas',
   appVersion: app.getVersion()
 }
@@ -62,7 +65,8 @@ function createUserDataDirectories() {
       adminUsername: 'admin',
       adminPassword: '',
       jwtSecret: generateSecret(),
-      apiBaseUrl: ''
+      apiBaseUrl: '',
+      cloudBaseUrl: config.cloudBaseUrl
     }
     writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2))
     store.set('config', defaultConfig)
@@ -137,6 +141,7 @@ async function startApiServer() {
     JWT_SECRET: store.get('config.jwtSecret') || generateSecret(),
     ADMIN_USERNAME: store.get('config.adminUsername') || 'admin',
     ADMIN_PASSWORD: store.get('config.adminPassword') || '',
+    INFINITE_CANVAS_CLOUD_BASE_URL: config.cloudBaseUrl,
     LOG_PATH: join(userDataPath, 'logs', 'api.log')
   }
 
@@ -229,7 +234,8 @@ async function startWebServer() {
     // Next.js standalone server requires HOSTNAME (not just HOST)
     HOSTNAME: '0.0.0.0',
     PORT: config.webPort.toString(),
-    API_BASE_URL: `http://127.0.0.1:${config.apiPort}`
+    API_BASE_URL: `http://127.0.0.1:${config.apiPort}`,
+    INFINITE_CANVAS_CLOUD_BASE_URL: config.cloudBaseUrl
   }
 
   // Start Next.js process
@@ -395,6 +401,7 @@ ipcMain.handle('get-app-info', () => {
     version: config.appVersion,
     apiPort: config.apiPort,
     webPort: config.webPort,
+    cloudBaseUrl: config.cloudBaseUrl,
     userDataPath: getUserDataPath()
   }
 })
@@ -409,3 +416,10 @@ ipcMain.handle('restart-servers', async () => {
     return { success: false, error: (error as Error).message }
   }
 })
+
+ipcMain.handle('desktop-auth-get-session', () => getCloudSession())
+ipcMain.handle('desktop-auth-save-session', (_, input) => setCloudSession(input))
+ipcMain.handle('desktop-auth-clear-session', () => clearCloudSession())
+ipcMain.handle('desktop-app-get-device-id', () => getDeviceId())
+ipcMain.handle('desktop-app-get-version', () => config.appVersion)
+ipcMain.handle('desktop-app-get-cloud-base-url', () => config.cloudBaseUrl)

@@ -28,7 +28,7 @@ const kindOptions = [
     { label: "全部", value: "all" },
     { label: "文本", value: "text" },
     { label: "图片", value: "image" },
-    { label: "视频", value: "video" },
+    // { label: "视频", value: "video" },
 ];
 
 export default function AssetsPage() {
@@ -315,7 +315,7 @@ export default function AssetsPage() {
                         </Form.Item>
                         <div className="grid gap-4 sm:grid-cols-2">
                             <Form.Item name="source" label="来源">
-                                <Input placeholder="手动添加 / 画布 / 提示词库" />
+                                <Input placeholder="手动添加 / 画布" />
                             </Form.Item>
                             <Form.Item name="note" label="备注">
                                 <Input placeholder="可选" />

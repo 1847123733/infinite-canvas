@@ -1,4 +1,4 @@
-# 无限画布文档索引
+﻿# 无限画布文档索引
 
 ## 项目介绍
 
@@ -17,6 +17,9 @@
 - [接口响应约定](/docs/backend/api-response)
 - [系统配置数据结构](/docs/backend/system-settings)
 - [后端数据库说明](/docs/backend/backend-database)
+- [桌面版云端架构方案](/docs/backend/desktop-cloud-architecture)
+- [桌面版云端控制开发计划](/docs/backend/desktop-cloud-server-development-plan)
+- [Electron 桌面端开发计划](/docs/backend/desktop-client-development-plan)
 - [画布数据结构](/docs/backend/canvas-data-structure)
 
 ## 商务合作

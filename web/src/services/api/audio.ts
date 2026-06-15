@@ -1,16 +1,16 @@
 import axios from "axios";
 
 import { audioMimeType, normalizeAudioFormatValue, normalizeAudioSpeedValue, normalizeAudioVoiceValue } from "@/lib/audio-generation";
+import { refreshRemoteUser, remoteAuthToken } from "@/services/api/ai-auth";
 import { uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { buildApiUrl, type AiConfig } from "@/stores/use-config-store";
-import { useUserStore } from "@/stores/use-user-store";
 
 function aiApiUrl(config: AiConfig, path: string) {
     return config.channelMode === "remote" ? `/api/v1${path}` : buildApiUrl(config.baseUrl, path);
 }
 
 function aiHeaders(config: AiConfig) {
-    const token = useUserStore.getState().token;
+    const token = remoteAuthToken();
     return config.channelMode === "remote"
         ? {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -20,10 +20,6 @@ function aiHeaders(config: AiConfig) {
               Authorization: `Bearer ${config.apiKey}`,
               "Content-Type": "application/json",
           };
-}
-
-function refreshRemoteUser(config: AiConfig) {
-    if (config.channelMode === "remote") void useUserStore.getState().hydrateUser();
 }
 
 export async function requestAudioGeneration(config: AiConfig, prompt: string): Promise<Blob> {

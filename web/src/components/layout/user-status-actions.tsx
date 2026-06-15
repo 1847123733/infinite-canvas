@@ -1,18 +1,17 @@
 "use client";
 
 import type { CSSProperties, RefObject } from "react";
-import { Avatar, Dropdown, Tooltip } from "antd";
-import { Keyboard, LogOut, Settings2, Shield } from "lucide-react";
+import { Avatar, Dropdown } from "antd";
+import { Keyboard, LogOut, Settings2 } from "lucide-react";
 import type { ItemType } from "antd/es/menu/interface";
 import Link from "next/link";
 
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
-import { CreditSymbol } from "@/constant/credits";
 import { APP_VERSION } from "@/constant/env";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useConfigStore } from "@/stores/use-config-store";
+import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
 import { useThemeStore } from "@/stores/use-theme-store";
-import { useUserStore } from "@/stores/use-user-store";
 
 type UserStatusActionsProps = {
     showConfig?: boolean;
@@ -27,12 +26,12 @@ type UserStatusActionsProps = {
 export function UserStatusActions({ showConfig = true, variant = "default", onOpenShortcuts, accountOpen, onAccountOpenChange, accountRef, getPopupContainer }: UserStatusActionsProps) {
     const theme = useThemeStore((state) => state.theme);
     const setTheme = useThemeStore((state) => state.setTheme);
-    const user = useUserStore((state) => state.user);
-    const logout = useUserStore((state) => state.clearSession);
+    const cloudUser = useCloudAuthStore((state) => state.user);
+    const cloudLogout = useCloudAuthStore((state) => state.logout);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
+    const user = cloudUser ? { ...cloudUser, avatarUrl: "" } : null;
     const canvasTheme = canvasThemes[theme];
     const userName = user?.displayName || user?.username || "";
-    const credits = user?.credits ?? 0;
     const avatarUrl = user?.avatarUrl?.trim();
     const avatarText = (userName.trim()[0] || "U").toUpperCase();
     const naturalIconClass = "inline-flex size-7 shrink-0 items-center justify-center text-stone-600 transition hover:text-stone-950 dark:text-stone-300 dark:hover:text-white [&_svg]:size-4";
@@ -40,10 +39,9 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const avatarStyle: CSSProperties | undefined = variant === "canvas" ? { borderColor: canvasTheme.toolbar.border, color: canvasTheme.node.text, background: "transparent" } : undefined;
     const menuItems: ItemType[] = [
         { key: "user", disabled: true, label: <span className="font-medium text-current">{userName}</span> },
-        ...(user?.role === "admin" ? [{ key: "admin", icon: <Shield className="size-4" />, label: <Link href="/admin">管理后台</Link> }] : []),
         ...(onOpenShortcuts ? [{ key: "shortcuts", icon: <Keyboard className="size-4" />, label: "快捷键", onClick: onOpenShortcuts }] : []),
         { type: "divider" },
-        { key: "logout", icon: <LogOut className="size-4" />, label: "退出登录", onClick: logout },
+        { key: "logout", icon: <LogOut className="size-4" />, label: "退出登录", onClick: () => { void cloudLogout(); } },
     ];
 
     return (
@@ -57,14 +55,6 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
             <span className="shrink-0 text-xs font-medium text-stone-500 dark:text-stone-400" style={iconStyle}>
                 v{APP_VERSION}
             </span>
-            {variant === "canvas" && user ? (
-                <Tooltip title="当前算力点余额" placement="bottom">
-                    <div className="flex h-8 shrink-0 items-center gap-1.5 px-1.5 text-xs font-medium tabular-nums opacity-75 transition hover:opacity-100" style={{ color: canvasTheme.node.text }}>
-                        <CreditSymbol className="text-sm leading-none" />
-                        <span>{credits.toLocaleString()}</span>
-                    </div>
-                </Tooltip>
-            ) : null}
             {!user && onOpenShortcuts ? (
                 <button type="button" className={naturalIconClass} style={iconStyle} onClick={onOpenShortcuts} aria-label="快捷键" title="快捷键">
                     <Keyboard className="size-4" />

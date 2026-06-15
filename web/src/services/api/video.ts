@@ -3,9 +3,9 @@ import axios from "axios";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { getMediaBlob, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { imageToDataUrl } from "@/services/image-storage";
+import { refreshRemoteUser, remoteAuthToken } from "@/services/api/ai-auth";
 import { boolConfig, buildSeedancePromptText, isSeedanceVideoConfig, normalizeSeedanceDuration, normalizeSeedanceRatio, normalizeSeedanceResolution, seedanceVideoReferenceError, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
 import { buildApiUrl, type AiConfig } from "@/stores/use-config-store";
-import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
@@ -29,7 +29,7 @@ function aiApiUrl(config: AiConfig, path: string) {
 }
 
 function aiHeaders(config: AiConfig, contentType?: string) {
-    const token = useUserStore.getState().token;
+    const token = remoteAuthToken();
     return config.channelMode === "remote"
         ? {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -39,10 +39,6 @@ function aiHeaders(config: AiConfig, contentType?: string) {
               Authorization: `Bearer ${config.apiKey}`,
               ...(contentType ? { "Content-Type": contentType } : {}),
           };
-}
-
-function refreshRemoteUser(config: AiConfig) {
-    if (config.channelMode === "remote") void useUserStore.getState().hydrateUser();
 }
 
 export async function requestVideoGeneration(config: AiConfig, prompt: string, references: ReferenceImage[] = [], videoReferences: ReferenceVideo[] = [], audioReferences: ReferenceAudio[] = []): Promise<VideoGenerationResult> {
@@ -234,7 +230,7 @@ async function resolveSeedanceAudioUrl(audio: ReferenceAudio) {
 }
 
 async function uploadReferenceMedia(file: File) {
-    const token = useUserStore.getState().token;
+    const token = remoteAuthToken();
     if (!token) throw new Error("使用本地参考素材需要先登录，并在服务端配置 PUBLIC_BASE_URL");
     const body = new FormData();
     body.append("file", file, file.name);

@@ -29,6 +29,7 @@ try {
     stdio: 'inherit',
     env: {
       ...process.env,
+      NODE_ENV: 'production',
       OUTPUT_STANDALONE: 'true',
       NEXT_PUBLIC_APP_VERSION: desktopPackage.version
     }

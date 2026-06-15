@@ -16,12 +16,9 @@ func New() *gin.Engine {
 	api.GET("/health", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
 	})
-	api.POST("/auth/register", gin.WrapF(handler.Register))
-	api.POST("/auth/login", gin.WrapF(handler.Login))
-	api.GET("/auth/linux-do/authorize", gin.WrapF(handler.LinuxDoAuthorize))
-	api.GET("/auth/linux-do/callback", gin.WrapF(handler.LinuxDoCallback))
 	api.GET("/auth/me", middleware.OptionalAuth, gin.WrapF(handler.CurrentUser))
 	api.GET("/settings", gin.WrapF(handler.Settings))
+	api.POST("/settings/cloud-sync", gin.WrapF(handler.SyncCloudControlledSettings))
 	api.GET("/media/references/:id", func(c *gin.Context) {
 		handler.ReferenceMedia(c.Writer, c.Request, c.Param("id"))
 	})
@@ -29,6 +26,7 @@ func New() *gin.Engine {
 		handler.ReferenceMedia(c.Writer, c.Request, c.Param("id"))
 	})
 	v1 := api.Group("/v1", middleware.UserAuth)
+	v1.POST("/desktop/images/generations", gin.WrapF(handler.DesktopAIImagesGenerations))
 	v1.POST("/images/generations", gin.WrapF(handler.AIImagesGenerations))
 	v1.POST("/images/edits", gin.WrapF(handler.AIImagesEdits))
 	v1.POST("/chat/completions", gin.WrapF(handler.AIChatCompletions))

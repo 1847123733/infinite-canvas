@@ -36,9 +36,8 @@ const emptySettings: AdminSettings = {
             systemPrompt: "",
             allowCustomChannel: true,
         },
-        auth: { allowRegister: true, linuxDo: { enabled: false } },
     },
-    private: { channels: [], promptSync: { enabled: true, cron: "*/5 * * * *" }, auth: { linuxDo: { clientId: "", clientSecret: "" } } },
+    private: { channels: [], promptSync: { enabled: true, cron: "*/5 * * * *" } },
 };
 const emptyChannel: AdminModelChannel = { protocol: "openai", name: "", baseUrl: "", apiKey: "", models: [], weight: 1, enabled: true, remark: "" };
 
@@ -470,11 +469,6 @@ export default function AdminSettingsPage() {
                                         </Form.Item>
                                     </Col>
                                     <Col span={24}>
-                                        <Form.Item name={["public", "auth", "allowRegister"]} label="是否允许用户注册" extra="关闭后隐藏注册入口，注册接口也会拒绝新用户创建" valuePropName="checked">
-                                            <Switch />
-                                        </Form.Item>
-                                    </Col>
-                                    <Col span={24}>
                                         <Typography.Title level={5}>模型算力点</Typography.Title>
                                         <Table
                                             rowKey="model"
@@ -520,41 +514,6 @@ export default function AdminSettingsPage() {
                     ) : activeMode === "visual" ? (
                         <Form form={form} layout="vertical" initialValues={emptySettings} requiredMark={false}>
                             <Flex vertical gap={12}>
-                                <Card
-                                    size="small"
-                                    title={
-                                        <Space>
-                                            <img src="/icons/linuxdo.svg" alt="" width={18} height={18} />
-                                            Linux.do 登录
-                                        </Space>
-                                    }
-                                >
-                                    <Flex vertical gap={14}>
-                                        <Typography.Text type="secondary">
-                                            本项目接口回调地址是 /api/auth/linux-do/callback，请在 Linux.do 应用后台自行拼接站点前缀。
-                                            <Typography.Link href="https://connect.linux.do" target="_blank" rel="noreferrer">
-                                                点击此处管理你的 LinuxDO OAuth App
-                                            </Typography.Link>
-                                        </Typography.Text>
-                                        <Row gutter={16}>
-                                            <Col xs={24} md={6}>
-                                                <Form.Item name={["public", "auth", "linuxDo", "enabled"]} label="开启 Linux.do 登录" valuePropName="checked">
-                                                    <Switch />
-                                                </Form.Item>
-                                            </Col>
-                                            <Col xs={24} md={9}>
-                                                <Form.Item name={["private", "auth", "linuxDo", "clientId"]} label="Linux.do Client ID">
-                                                    <Input placeholder="输入 Linux.do OAuth App 的 ID" />
-                                                </Form.Item>
-                                            </Col>
-                                            <Col xs={24} md={9}>
-                                                <Form.Item name={["private", "auth", "linuxDo", "clientSecret"]} label="Linux.do Client Secret">
-                                                    <Input.Password placeholder="留空则沿用已保存的密钥" />
-                                                </Form.Item>
-                                            </Col>
-                                        </Row>
-                                    </Flex>
-                                </Card>
                                 <Card size="small" title="提示词定时同步">
                                     <Row gutter={16} align="middle">
                                         <Col xs={24} md={8}>
@@ -861,12 +820,6 @@ function normalizePublicSetting(setting: Partial<AdminSettings["public"]> = {}):
             availableModels: setting.modelChannel?.availableModels || [],
             modelCosts: normalizeModelCosts(setting.modelChannel?.modelCosts || []),
         },
-        auth: {
-            allowRegister: setting.auth?.allowRegister !== false,
-            linuxDo: {
-                enabled: setting.auth?.linuxDo?.enabled === true,
-            },
-        },
     };
 }
 
@@ -880,12 +833,6 @@ function normalizePrivateSetting(setting: Partial<AdminSettings["private"]> = {}
         promptSync: {
             enabled: setting.promptSync?.enabled !== false,
             cron: setting.promptSync?.cron || "*/5 * * * *",
-        },
-        auth: {
-            linuxDo: {
-                clientId: setting.auth?.linuxDo?.clientId || "",
-                clientSecret: setting.auth?.linuxDo?.clientSecret || "",
-            },
         },
     };
 }
