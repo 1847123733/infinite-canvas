@@ -33,6 +33,15 @@ let config = {
   appVersion: app.getVersion()
 }
 
+function getWindowIconPath() {
+  if (process.platform !== 'win32') {
+    return undefined
+  }
+
+  const devIconPath = join(process.cwd(), 'build', 'icon.ico')
+  return existsSync(devIconPath) ? devIconPath : undefined
+}
+
 // Get user data directory
 function getUserDataPath() {
   return app.getPath('userData')
@@ -292,6 +301,8 @@ function stopServers() {
 
 // Create main window
 function createWindow() {
+  const icon = getWindowIconPath()
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -299,6 +310,7 @@ function createWindow() {
     minHeight: 768,
     show: false,
     autoHideMenuBar: true,
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
       nodeIntegration: false,
@@ -330,6 +342,10 @@ function createWindow() {
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   app.quit()
+}
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.infinitecanvas1.app')
 }
 
 // App event handlers

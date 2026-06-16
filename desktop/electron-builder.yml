@@ -1,8 +1,8 @@
 # Electron Builder Configuration
 
-appId: com.infinitecanvas.app
+appId: com.infinitecanvas1.app
 productName: Infinite Canvas
-copyright: Copyright © 2024 Infinite Canvas Team
+copyright: Copyright © 2024 wangxk
 
 directories:
   buildResources: build
@@ -59,11 +59,12 @@ linux:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
-  createDesktopShortcut: true
+  createDesktopShortcut: always
   createStartMenuShortcut: true
   runAfterFinish: true
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
+  include: build/installer.nsh
   perMachine: false
 
 dmg:
@@ -76,7 +77,3 @@ dmg:
       type: link
       path: /Applications
 
-publish:
-  provider: github
-  owner: basketikun
-  repo: infinite-canvas

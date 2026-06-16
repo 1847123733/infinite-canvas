@@ -1,6 +1,6 @@
 {
   "name": "infinite-canvas-desktop",
-  "version": "0.0.6",
+  "version": "0.0.1",
   "description": "无限画布-人工智能驱动的无限画布应用程序",
   "main": "out/main/main.js",
   "author": "王鑫凯",
@@ -33,7 +33,7 @@
     "vite": "^5.0.10"
   },
   "build": {
-    "appId": "com.infinitecanvas.app",
+    "appId": "com.infinitecanvas1.app",
     "productName": "Infinite Canvas",
     "directories": {
       "output": "dist-electron"
@@ -82,8 +82,11 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "include": "build/installer.nsh"
     }
   }
 }
