@@ -11,7 +11,6 @@ directories:
 
 files:
   - out/**/*
-  - resources/**/*
 
 extraResources:
   - from: resources/api
@@ -20,9 +19,8 @@ extraResources:
     to: resources/web
 
 asar: true
-asarUnpack:
-  - resources/api/**
-  - resources/web/**
+# asarUnpack removed: api and web are already placed via extraResources,
+# no need to also extract them from the asar archive
 
 win:
   target:

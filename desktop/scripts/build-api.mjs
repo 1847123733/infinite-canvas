@@ -34,8 +34,8 @@ function stopLockedWindowsApi(targetPath) {
 try {
   // Build Go binary for current platform
   const buildCommand = process.platform === 'win32'
-    ? 'go build -o api.exe'
-    : 'go build -o api'
+    ? 'go build -ldflags="-s -w" -o api.exe'
+    : 'go build -ldflags="-s -w" -o api'
 
   execSync(buildCommand, {
     cwd: join(projectRoot),
