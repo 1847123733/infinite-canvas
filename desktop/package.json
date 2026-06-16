@@ -35,6 +35,7 @@
   "build": {
     "appId": "com.infinitecanvas1.app",
     "productName": "Infinite Canvas",
+    "executableName": "Infinite Canvas",
     "directories": {
       "output": "dist-electron"
     },
