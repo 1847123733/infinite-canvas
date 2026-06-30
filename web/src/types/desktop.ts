@@ -11,6 +11,19 @@ declare global {
             getDeviceId: () => Promise<string>;
             getVersion: () => Promise<string>;
             getCloudBaseUrl: () => Promise<string>;
+            checkUpdate: () => Promise<{
+                id: number;
+                version: string;
+                title: string;
+                releaseNotes: string;
+                platform: string;
+                arch: string;
+                downloadUrl: string;
+                fileSize: number;
+                status: string;
+            } | null>;
+            downloadUpdate: (url: string, expectedTotal?: number) => Promise<{ success: boolean; path?: string; error?: string }>;
+            onUpdateProgress: (callback: (progress: { status: "downloading" | "completed" | "launching" | "error"; percent: number; downloaded: number; total: number; message?: string }) => void) => () => void;
         };
     }
 }

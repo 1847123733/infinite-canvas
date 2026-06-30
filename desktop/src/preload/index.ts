@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -27,7 +27,14 @@ contextBridge.exposeInMainWorld('desktopAuth', {
 contextBridge.exposeInMainWorld('desktopApp', {
   getDeviceId: () => ipcRenderer.invoke('desktop-app-get-device-id'),
   getVersion: () => ipcRenderer.invoke('desktop-app-get-version'),
-  getCloudBaseUrl: () => ipcRenderer.invoke('desktop-app-get-cloud-base-url')
+  getCloudBaseUrl: () => ipcRenderer.invoke('desktop-app-get-cloud-base-url'),
+  checkUpdate: () => ipcRenderer.invoke('check-update'),
+  downloadUpdate: (url: string, expectedTotal?: number) => ipcRenderer.invoke('download-update', url, expectedTotal),
+  onUpdateProgress: (callback: (progress: { status: 'downloading' | 'completed' | 'launching' | 'error'; percent: number; downloaded: number; total: number; message?: string }) => void) => {
+    const listener = (_event: IpcRendererEvent, data: { status: 'downloading' | 'completed' | 'launching' | 'error'; percent: number; downloaded: number; total: number; message?: string }) => callback(data)
+    ipcRenderer.on('update-download-progress', listener)
+    return () => ipcRenderer.removeListener('update-download-progress', listener)
+  },
 })
 
 // TypeScript types for the exposed API
@@ -62,6 +69,19 @@ declare global {
       getDeviceId: () => Promise<string>
       getVersion: () => Promise<string>
       getCloudBaseUrl: () => Promise<string>
+      checkUpdate: () => Promise<{
+        id: number
+        version: string
+        title: string
+        releaseNotes: string
+        platform: string
+        arch: string
+        downloadUrl: string
+        fileSize: number
+        status: string
+      } | null>
+      downloadUpdate: (url: string, expectedTotal?: number) => Promise<{ success: boolean; path?: string; error?: string }>
+      onUpdateProgress: (callback: (progress: { status: 'downloading' | 'completed' | 'launching' | 'error'; percent: number; downloaded: number; total: number; message?: string }) => void) => () => void
     }
   }
 }

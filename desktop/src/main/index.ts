@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join } from 'path'
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
+import { basename, join } from 'path'
 import { spawn } from 'child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs'
 import Store from 'electron-store'
 import portfinder from 'portfinder'
 import { clearCloudSession, getCloudSession, setCloudSession } from './cloud-session-store'
@@ -14,6 +14,46 @@ if (process.env.ELECTRON_RUN_AS_NODE) {
   delete process.env.ELECTRON_RUN_AS_NODE
 }
 
+// Load env from packaged resources (production) or project directory (development)
+function loadEnvFromResources() {
+  const isDev = process.env.NODE_ENV === 'development'
+  const candidates: string[] = []
+  const ignoredKeys = isDev ? new Set<string>() : new Set(['NODE_ENV'])
+  if (isDev) {
+    candidates.push(join(process.cwd(), '.env'))
+  } else {
+    // Production: try both direct and nested resource paths for packaged env files.
+    candidates.push(join(process.resourcesPath, 'resources', 'env.ini'))
+    candidates.push(join(process.resourcesPath, 'env.ini'))
+    candidates.push(join(process.resourcesPath, 'resources', '.env'))
+    candidates.push(join(process.resourcesPath, '.env'))
+  }
+  for (const envPath of candidates) {
+    if (!existsSync(envPath)) continue
+    try {
+      const content = readFileSync(envPath, 'utf-8')
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim()
+        if (!trimmed || trimmed.startsWith('#')) continue
+        const eqIndex = trimmed.indexOf('=')
+        if (eqIndex === -1) continue
+        const key = trimmed.slice(0, eqIndex).trim()
+        const value = trimmed.slice(eqIndex + 1).trim()
+        if (ignoredKeys.has(key)) continue
+        if (!process.env[key]) {
+          process.env[key] = value
+        }
+      }
+      console.log(`[Infinite Canvas] Loaded env from ${envPath}`)
+      return
+    } catch (err) {
+      console.warn('[Infinite Canvas] Failed to load env:', err)
+    }
+  }
+}
+
+loadEnvFromResources()
+
 // Store for configuration
 const store = new Store()
 
@@ -21,6 +61,7 @@ const store = new Store()
 let apiProcess: any = null
 let webProcess: any = null
 let mainWindow: BrowserWindow | null = null
+let updateDownloadInProgress = false
 
 // Configuration
 let config = {
@@ -31,6 +72,179 @@ let config = {
   cloudBaseUrl: (process.env.INFINITE_CANVAS_CLOUD_BASE_URL || '').trim(),
   appName: process.env.APP_NAME || 'Infinite Canvas',
   appVersion: app.getVersion()
+}
+
+function updatePlatform() {
+  if (process.platform === 'win32') return 'win'
+  if (process.platform === 'darwin') return 'mac'
+  if (process.platform === 'linux') return 'linux'
+  return process.platform
+}
+
+function normalizeVersion(version: string) {
+  return version.trim().replace(/^v/i, '').split('.').map(part => parseInt(part, 10) || 0)
+}
+
+function hasNewerVersion(remoteVersion: string, currentVersion: string) {
+  const remote = normalizeVersion(remoteVersion)
+  const current = normalizeVersion(currentVersion)
+  const length = Math.max(remote.length, current.length)
+  for (let i = 0; i < length; i += 1) {
+    const remotePart = remote[i] || 0
+    const currentPart = current[i] || 0
+    if (remotePart === currentPart) continue
+    return remotePart > currentPart
+  }
+  return false
+}
+
+function emitUpdateProgress(data: {
+  status: 'downloading' | 'completed' | 'launching' | 'error'
+  percent: number
+  downloaded: number
+  total: number
+  message?: string
+}) {
+  mainWindow?.webContents.send('update-download-progress', data)
+}
+
+function getUpdateDownloadDirectory() {
+  const updateDir = join(getUserDataPath(), 'updates')
+  if (!existsSync(updateDir)) {
+    mkdirSync(updateDir, { recursive: true })
+  }
+  return updateDir
+}
+
+function getUpdateFilePath(downloadUrl: string) {
+  const pathname = new URL(downloadUrl).pathname
+  const originalName = basename(pathname) || 'Infinite Canvas Setup.exe'
+  const safeName = decodeURIComponent(originalName).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+  const fileName = safeName.toLowerCase().endsWith('.exe') ? safeName : `${safeName}.exe`
+  return join(getUpdateDownloadDirectory(), fileName)
+}
+
+async function downloadUpdatePackage(downloadUrl: string, expectedTotal = 0) {
+  const response = await fetch(downloadUrl)
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`)
+  }
+  if (!response.body) {
+    throw new Error('安装包下载流不可用')
+  }
+
+  const total = parseInt(response.headers.get('content-length') || '0', 10) || expectedTotal
+  const targetPath = getUpdateFilePath(downloadUrl)
+  const tempPath = `${targetPath}.download`
+  const reader = response.body.getReader()
+  let downloaded = 0
+  let fileStream: ReturnType<typeof createWriteStream> | null = null
+
+  try {
+    if (existsSync(tempPath)) unlinkSync(tempPath)
+    if (existsSync(targetPath)) unlinkSync(targetPath)
+    fileStream = createWriteStream(tempPath)
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      await new Promise<void>((resolve, reject) => {
+        fileStream.write(Buffer.from(value), (error) => {
+          if (error) reject(error)
+          else resolve()
+        })
+      })
+      downloaded += value.length
+      const percent = total > 0 ? Math.min(100, Number(((downloaded / total) * 100).toFixed(1))) : 0
+      emitUpdateProgress({
+        status: 'downloading',
+        percent,
+        downloaded,
+        total,
+        message: '正在下载更新安装包'
+      })
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      fileStream.end((error) => {
+        if (error) reject(error)
+        else resolve()
+      })
+    })
+
+    renameSync(tempPath, targetPath)
+    emitUpdateProgress({
+      status: 'completed',
+      percent: 100,
+      downloaded,
+      total: total || downloaded,
+      message: '下载完成，准备启动安装程序'
+    })
+    return targetPath
+  } catch (error) {
+    fileStream?.destroy()
+    if (existsSync(tempPath)) unlinkSync(tempPath)
+    throw error
+  }
+}
+
+function launchWindowsInstaller(installerPath: string) {
+  const currentPid = process.pid
+  const updateDir = getUpdateDownloadDirectory()
+  const helperPath = join(updateDir, `launch-installer-${currentPid}.vbs`)
+  const logPath = join(updateDir, `launch-installer-${currentPid}.log`)
+  const escapedInstallerPath = installerPath.replace(/"/g, '""')
+  const escapedLogPath = logPath.replace(/"/g, '""')
+  const helperScript = [
+    'On Error Resume Next',
+    'Dim shell, fso, wmi, processes, retries',
+    'Set shell = CreateObject("WScript.Shell")',
+    'Set fso = CreateObject("Scripting.FileSystemObject")',
+    `target = "${escapedInstallerPath}"`,
+    `logPath = "${escapedLogPath}"`,
+    `waitPid = ${currentPid}`,
+    'WriteLog "helper started"',
+    'Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")',
+    'retries = 0',
+    'Do While retries < 8',
+    '  Set processes = wmi.ExecQuery("Select * from Win32_Process Where ProcessId = " & waitPid)',
+    '  If processes.Count = 0 Then Exit Do',
+    '  WScript.Sleep 1000',
+    '  retries = retries + 1',
+    'Loop',
+    'WriteLog "launching installer """" & target & """""',
+    'shell.Run Chr(34) & target & Chr(34), 1, False',
+    'WriteLog "run command finished with err " & Err.Number',
+    'fso.DeleteFile WScript.ScriptFullName, True',
+    '',
+    'Sub WriteLog(message)',
+    '  Dim file',
+    '  Set file = fso.OpenTextFile(logPath, 8, True)',
+    '  file.WriteLine "[" & Now & "] " & message',
+    '  file.Close',
+    'End Sub'
+  ].join('\r\n')
+  writeFileSync(helperPath, helperScript, 'utf-8')
+
+  const helper = spawn('wscript.exe', [
+    helperPath
+  ], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true
+  })
+  helper.unref()
+}
+
+function quitForUpdate() {
+  try {
+    mainWindow?.destroy()
+  } catch (error) {
+    console.warn('Failed to destroy main window during update quit:', error)
+  }
+  stopServers()
+  setTimeout(() => app.exit(0), 100)
 }
 
 function getWindowIconPath() {
@@ -353,6 +567,14 @@ app.whenReady().then(async () => {
   // Create user data directories
   createUserDataDirectories()
 
+  // Restore cloudBaseUrl from persisted config if env var is absent (e.g. packaged exe)
+  if (!config.cloudBaseUrl) {
+    const stored = store.get('config.cloudBaseUrl') as string | undefined
+    if (stored?.trim()) {
+      config.cloudBaseUrl = stored.trim()
+    }
+  }
+
   // Check if first run
   const isFirstRun = !store.has('initialized')
   if (isFirstRun) {
@@ -408,6 +630,10 @@ ipcMain.handle('get-config', () => {
 
 ipcMain.handle('set-config', (_, configData: any) => {
   store.set('config', configData)
+  // Sync cloudBaseUrl to in-memory config so restart-servers uses the new value
+  if (typeof configData?.cloudBaseUrl === 'string') {
+    config.cloudBaseUrl = configData.cloudBaseUrl.trim()
+  }
   return true
 })
 
@@ -439,3 +665,82 @@ ipcMain.handle('desktop-auth-clear-session', () => clearCloudSession())
 ipcMain.handle('desktop-app-get-device-id', () => getDeviceId())
 ipcMain.handle('desktop-app-get-version', () => config.appVersion)
 ipcMain.handle('desktop-app-get-cloud-base-url', () => config.cloudBaseUrl)
+ipcMain.handle('check-update', async () => {
+  try {
+    const params = new URLSearchParams({
+      platform: updatePlatform(),
+      arch: process.arch
+    })
+    const response = await fetch(`http://127.0.0.1:${config.apiPort}/api/update/check?${params.toString()}`)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+    const payload = await response.json() as {
+      code: number
+      data: {
+        id: number
+        version: string
+        title: string
+        releaseNotes: string
+        platform: string
+        arch: string
+        downloadUrl: string
+        fileSize: number
+        status: string
+      } | null
+      msg: string
+    }
+    if (payload.code !== 0) {
+      throw new Error(payload.msg || '请求失败')
+    }
+    if (!payload.data) {
+      return null
+    }
+    return hasNewerVersion(payload.data.version, config.appVersion) ? payload.data : null
+  } catch (error) {
+    console.error('Failed to check update:', error)
+    throw new Error('检测失败，请稍后重试')
+  }
+})
+ipcMain.handle('download-update', async (_, url: string, expectedTotal?: number) => {
+  if (process.platform !== 'win32') {
+    try {
+      await shell.openExternal(url)
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to open update url:', error)
+      return { success: false, error: '打开下载地址失败' }
+    }
+  }
+
+  if (updateDownloadInProgress) {
+    return { success: false, error: '更新下载中，请稍后' }
+  }
+
+  updateDownloadInProgress = true
+  try {
+    const installerPath = await downloadUpdatePackage(url, expectedTotal || 0)
+    emitUpdateProgress({
+      status: 'launching',
+      percent: 100,
+      downloaded: 0,
+      total: 0,
+      message: '即将启动安装程序并关闭当前应用'
+    })
+    launchWindowsInstaller(installerPath)
+    quitForUpdate()
+    return { success: true, path: installerPath }
+  } catch (error) {
+    console.error('Failed to download update:', error)
+    emitUpdateProgress({
+      status: 'error',
+      percent: 0,
+      downloaded: 0,
+      total: 0,
+      message: '下载更新失败，请稍后重试'
+    })
+    return { success: false, error: '下载更新失败，请稍后重试' }
+  } finally {
+    updateDownloadInProgress = false
+  }
+})

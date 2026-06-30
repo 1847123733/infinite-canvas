@@ -1,6 +1,6 @@
 {
   "name": "infinite-canvas-desktop",
-  "version": "0.0.2",
+  "version": "0.0.6",
   "description": "无限画布-人工智能驱动的无限画布应用程序",
   "main": "out/main/main.js",
   "author": "王鑫凯",
@@ -13,7 +13,7 @@
     "preview": "node scripts/dev.mjs preview",
     "build:api": "node scripts/build-api.mjs",
     "build:web": "node scripts/build-web.mjs",
-    "build:all": "npm run build:api && npm run build:web && npm run build",
+    "build:all": "npm run build:api && npm run build:web && npm run build && node scripts/copy-env.mjs",
     "pack": "npm run build:all && electron-builder --dir",
     "dist": "npm run build:all && electron-builder",
     "dist:win": "npm run build:all && electron-builder --win",
@@ -50,6 +50,10 @@
       {
         "from": "resources/web",
         "to": "resources/web"
+      },
+      {
+        "from": "resources/env.ini",
+        "to": "resources/env.ini"
       }
     ],
     "win": {

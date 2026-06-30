@@ -17,6 +17,8 @@ extraResources:
     to: resources/api
   - from: resources/web
     to: resources/web
+  - from: resources/env.ini
+    to: resources/env.ini
 
 asar: true
 # asarUnpack removed: api and web are already placed via extraResources,

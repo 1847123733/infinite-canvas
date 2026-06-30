@@ -8,12 +8,15 @@ import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-
 import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
+import { UpdateDialog } from "@/app/(user)/canvas/components/update-dialog";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
 export function AppTopNav() {
     const pathname = usePathname();
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
+    const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+    const [updateRequestKey, setUpdateRequestKey] = useState(0);
     const hideHeader = /^\/canvas\/[^/]+/.test(pathname);
     const slug = pathname.split("/").filter(Boolean)[0];
     const activeToolSlug = navigationTools.some((tool) => tool.slug === slug) ? (slug as NavigationToolSlug) : undefined;
@@ -63,7 +66,12 @@ export function AppTopNav() {
                         </div>
 
                         <div className="my-auto flex h-9 min-w-0 items-center justify-end gap-2 justify-self-end whitespace-nowrap">
-                            <UserStatusActions />
+                            <UserStatusActions
+                                onCheckUpdate={() => {
+                                    setUpdateRequestKey((value) => value + 1);
+                                    setUpdateDialogOpen(true);
+                                }}
+                            />
                         </div>
                     </div>
                 </header>
@@ -71,6 +79,7 @@ export function AppTopNav() {
 
             <MobileNavDrawer open={mobileNavOpen} activeToolSlug={activeToolSlug} onClose={() => setMobileNavOpen(false)} />
             <AppConfigModal />
+            <UpdateDialog open={updateDialogOpen} requestKey={updateRequestKey} onClose={() => setUpdateDialogOpen(false)} />
         </>
     );
 }

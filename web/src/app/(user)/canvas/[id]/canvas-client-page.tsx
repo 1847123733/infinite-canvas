@@ -42,6 +42,7 @@ import { CanvasNodePromptPanel, type CanvasNodeGenerationMode } from "../compone
 import { CanvasToolbar } from "../components/canvas-toolbar";
 import { AssetPickerModal, type AssetPickerTab, type InsertAssetPayload } from "../components/asset-picker-modal";
 import { CanvasZoomControls } from "../components/canvas-zoom-controls";
+import { UpdateDialog } from "../components/update-dialog";
 import { useCanvasStore } from "../stores/use-canvas-store";
 import { buildCanvasResourceReferences, buildNodeMentionReferences } from "../utils/canvas-resource-references";
 import {
@@ -2657,6 +2658,20 @@ function CanvasTopBar({
     const accountRef = useRef<HTMLDivElement>(null);
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
+    const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+    const [updateRequestKey, setUpdateRequestKey] = useState(0);
+
+    // Auto check for updates on first load
+    useEffect(() => {
+        if (typeof window === "undefined" || !window.desktopApp?.checkUpdate) return;
+        const timer = setTimeout(async () => {
+            try {
+                const info = await window.desktopApp!.checkUpdate!();
+                if (info) setUpdateDialogOpen(true);
+            } catch { /* ignore */ }
+        }, 8000);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         if (!isTitleEditing) return;
@@ -2737,6 +2752,10 @@ function CanvasTopBar({
                         onAccountOpenChange={setAccountOpen}
                         accountRef={accountRef}
                         getPopupContainer={(node) => node.parentElement || document.body}
+                        onCheckUpdate={() => {
+                            setUpdateRequestKey((value) => value + 1);
+                            setUpdateDialogOpen(true);
+                        }}
                         onOpenShortcuts={() => {
                             setShortcutsOpen(true);
                             setAccountOpen(false);
@@ -2775,6 +2794,7 @@ function CanvasTopBar({
                     <Shortcut keys={["拖入图片"]} value="上传到画布" />
                 </div>
             </Modal>
+            <UpdateDialog open={updateDialogOpen} requestKey={updateRequestKey} onClose={() => setUpdateDialogOpen(false)} />
         </>
     );
 }

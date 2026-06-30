@@ -17,13 +17,14 @@ type UserStatusActionsProps = {
     showConfig?: boolean;
     variant?: "default" | "canvas";
     onOpenShortcuts?: () => void;
+    onCheckUpdate?: () => void;
     accountOpen?: boolean;
     onAccountOpenChange?: (open: boolean) => void;
     accountRef?: RefObject<HTMLDivElement | null>;
     getPopupContainer?: (node: HTMLElement) => HTMLElement;
 };
 
-export function UserStatusActions({ showConfig = true, variant = "default", onOpenShortcuts, accountOpen, onAccountOpenChange, accountRef, getPopupContainer }: UserStatusActionsProps) {
+export function UserStatusActions({ showConfig = true, variant = "default", onOpenShortcuts, onCheckUpdate, accountOpen, onAccountOpenChange, accountRef, getPopupContainer }: UserStatusActionsProps) {
     const theme = useThemeStore((state) => state.theme);
     const setTheme = useThemeStore((state) => state.setTheme);
     const cloudUser = useCloudAuthStore((state) => state.user);
@@ -35,6 +36,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const avatarUrl = user?.avatarUrl?.trim();
     const avatarText = (userName.trim()[0] || "U").toUpperCase();
     const naturalIconClass = "inline-flex size-7 shrink-0 items-center justify-center text-stone-600 transition hover:text-stone-950 dark:text-stone-300 dark:hover:text-white [&_svg]:size-4";
+    const updateButtonClass = variant === "canvas" ? "inline-flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs font-medium transition hover:bg-white/10" : "inline-flex h-7 shrink-0 items-center justify-center rounded-md px-2 text-xs font-medium text-stone-500 transition hover:bg-stone-100 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100";
     const iconStyle: CSSProperties | undefined = variant === "canvas" ? { color: canvasTheme.node.text } : undefined;
     const avatarStyle: CSSProperties | undefined = variant === "canvas" ? { borderColor: canvasTheme.toolbar.border, color: canvasTheme.node.text, background: "transparent" } : undefined;
     const menuItems: ItemType[] = [
@@ -52,6 +54,11 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                 </button>
             ) : null}
             <AnimatedThemeToggler theme={theme} onThemeChange={setTheme} className={naturalIconClass} style={iconStyle} aria-label={theme === "dark" ? "切换到浅色主题" : "切换到深色主题"} title={theme === "dark" ? "切换到浅色主题" : "切换到深色主题"} />
+            {onCheckUpdate ? (
+                <button type="button" className={updateButtonClass} style={iconStyle} onClick={onCheckUpdate} aria-label="检测版本" title="检测版本">
+                    检测版本
+                </button>
+            ) : null}
             <span className="shrink-0 text-xs font-medium text-stone-500 dark:text-stone-400" style={iconStyle}>
                 v{APP_VERSION}
             </span>

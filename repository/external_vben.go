@@ -66,3 +66,22 @@ func ListExternalVbenLLMModels() ([]model.ExternalVbenLLMModel, error) {
 	err = db.Where("enabled = ?", true).Order("is_default desc, protocol asc, api_base_url asc, model_name asc").Find(&items).Error
 	return items, err
 }
+
+func GetLatestAppUpdate(platform, arch string) (*model.ExternalAppUpdate, error) {
+	db, err := externalVben()
+	if err != nil {
+		return nil, err
+	}
+	var item model.ExternalAppUpdate
+	err = db.Where("status = ? AND title = ? AND platform = ? AND arch = ?", "published", "Infinite Canvas", platform, arch).
+		Order("created_at desc").
+		Limit(1).
+		Find(&item).Error
+	if err != nil {
+		return nil, err
+	}
+	if item.ID == 0 {
+		return nil, nil
+	}
+	return &item, nil
+}
