@@ -23,10 +23,6 @@ type TokenClaims struct {
 	jwt.RegisteredClaims
 }
 
-type userExtra struct {
-	ExternalVben *externalVbenExtra `json:"externalVben,omitempty"`
-}
-
 func EnsureDefaultAdmin() error {
 	if strings.TrimSpace(config.Cfg.AdminUsername) == "" || strings.TrimSpace(config.Cfg.AdminPassword) == "" {
 		return nil
@@ -60,10 +56,6 @@ func Login(username string, password string) (model.AuthSession, error) {
 	}
 	if username == "" || password == "" {
 		return model.AuthSession{}, safeMessageError{message: "用户名和密码不能为空"}
-	}
-	session, handled, err := loginWithExternalVben(username, password)
-	if handled {
-		return session, err
 	}
 	user, ok, err := repository.GetUserByUsername(username)
 	if err != nil {

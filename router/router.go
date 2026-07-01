@@ -18,7 +18,6 @@ func New() *gin.Engine {
 	})
 	api.GET("/auth/me", middleware.OptionalAuth, gin.WrapF(handler.CurrentUser))
 	api.GET("/settings", gin.WrapF(handler.Settings))
-	api.POST("/settings/cloud-sync", gin.WrapF(handler.SyncCloudControlledSettings))
 	api.GET("/media/references/:id", func(c *gin.Context) {
 		handler.ReferenceMedia(c.Writer, c.Request, c.Param("id"))
 	})
@@ -60,7 +59,6 @@ func New() *gin.Engine {
 	})
 	admin.GET("/settings", gin.WrapF(handler.AdminSettings))
 	admin.POST("/settings", gin.WrapF(handler.AdminSaveSettings))
-	admin.POST("/settings/external-sync", gin.WrapF(handler.AdminSyncExternalLLMSettings))
 	admin.POST("/settings/channel-models", gin.WrapF(handler.AdminChannelModels))
 	admin.POST("/settings/channel-test", gin.WrapF(handler.AdminTestChannelModel))
 	admin.GET("/prompt-categories", gin.WrapF(handler.AdminPromptCategories))

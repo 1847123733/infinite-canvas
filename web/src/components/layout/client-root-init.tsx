@@ -17,6 +17,11 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     }, [loadPublicSettings]);
 
     useEffect(() => {
+        if (!accessToken) return;
+        void loadPublicSettings();
+    }, [accessToken, loadPublicSettings]);
+
+    useEffect(() => {
         void restoreCloudSession();
     }, [restoreCloudSession]);
 

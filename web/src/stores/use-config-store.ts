@@ -5,7 +5,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import type { AdminPublicSettings } from "@/services/api/admin";
-import { fetchPublicSettings, syncCloudControlledSettings } from "@/services/api/settings";
+import { fetchCloudPublicSettings, fetchPublicSettings } from "@/services/api/settings";
+import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
 
 export type AiConfig = {
     channelMode: "remote" | "local";
@@ -26,6 +27,7 @@ export type AiConfig = {
     videoWatermark: string;
     systemPrompt: string;
     models: string[];
+    modelNames: Record<string, string>;
     imageModels: string[];
     videoModels: string[];
     textModels: string[];
@@ -67,6 +69,7 @@ export const defaultConfig: AiConfig = {
     videoWatermark: "false",
     systemPrompt: "",
     models: [],
+    modelNames: {},
     imageModels: [],
     videoModels: [],
     textModels: [],
@@ -108,6 +111,7 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
     const channelMode: AiConfig["channelMode"] = "remote";
     if (!modelChannel) return { ...config, channelMode };
     const models = modelChannel.availableModels;
+    const modelNames = pickModelNames(modelChannel.modelNames || {}, models);
     const textModels = filterModelsByCapability(models, "text");
     const imageModels = filterModelsByCapability(models, "image");
     const videoModels = filterModelsByCapability(models, "video");
@@ -121,6 +125,7 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
         ...config,
         channelMode,
         models,
+        modelNames,
         imageModels,
         videoModels,
         textModels,
@@ -136,6 +141,11 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
 
 function validDefault(model: string, models: string[]) {
     return models.includes(model) ? model : "";
+}
+
+function pickModelNames(source: Record<string, string>, models: string[]) {
+    const allowed = new Set(models);
+    return Object.fromEntries(Object.entries(source).filter(([model, name]) => allowed.has(model) && Boolean(name?.trim())));
 }
 
 function preferredModel(models: string[], predicate: (model: string) => boolean) {
@@ -186,6 +196,27 @@ function isAiConfigReady(_config: AiConfig, model: string) {
     return Boolean(model.trim());
 }
 
+function desktopCloudSettingsSource() {
+    const cloud = useCloudAuthStore.getState();
+    if (!cloud.isDesktopCloud || !cloud.cloudBaseUrl) return null;
+    return cloud.accessToken ? { baseUrl: cloud.cloudBaseUrl, token: cloud.accessToken } : null;
+}
+
+async function loadCurrentPublicSettings() {
+    const cloud = desktopCloudSettingsSource();
+    return cloud ? fetchCloudPublicSettings(cloud.baseUrl, cloud.token) : fetchPublicSettings();
+}
+
+async function syncCurrentPublicSettings() {
+    const cloud = desktopCloudSettingsSource();
+    if (!cloud) {
+        const state = useCloudAuthStore.getState();
+        if (state.isDesktopCloud) throw new Error("请先登录云端账号");
+        return fetchPublicSettings();
+    }
+    return fetchCloudPublicSettings(cloud.baseUrl, cloud.token);
+}
+
 export const useConfigStore = create<ConfigStore>()(
     persist(
         (set, get) => ({
@@ -213,18 +244,18 @@ export const useConfigStore = create<ConfigStore>()(
                 if (get().isPublicSettingsLoading) return;
                 set({ isPublicSettingsLoading: true });
                 try {
-                    set({ publicSettings: await fetchPublicSettings() });
+                    set({ publicSettings: await loadCurrentPublicSettings() });
                 } finally {
                     set({ isPublicSettingsLoading: false });
                 }
             },
             syncPublicSettings: async () => {
                 if (get().isPublicSettingsLoading) {
-                    return get().publicSettings || fetchPublicSettings();
+                    return get().publicSettings || loadCurrentPublicSettings();
                 }
                 set({ isPublicSettingsLoading: true });
                 try {
-                    const publicSettings = await syncCloudControlledSettings();
+                    const publicSettings = await syncCurrentPublicSettings();
                     set({ publicSettings });
                     return publicSettings;
                 } finally {
@@ -263,6 +294,7 @@ export const useConfigStore = create<ConfigStore>()(
                         videoGenerateAudio: config.videoGenerateAudio || "true",
                         videoWatermark: config.videoWatermark || "false",
                         canvasImageCount: config.canvasImageCount || "3",
+                        modelNames: config.modelNames || {},
                         imageModels: Array.isArray(persistedConfig.imageModels) ? normalizeModelList(config.imageModels) : filterModelsByCapability(config.models, "image"),
                         videoModels: Array.isArray(persistedConfig.videoModels) ? normalizeModelList(config.videoModels) : filterModelsByCapability(config.models, "video"),
                         textModels: Array.isArray(persistedConfig.textModels) ? normalizeModelList(config.textModels) : filterModelsByCapability(config.models, "text"),

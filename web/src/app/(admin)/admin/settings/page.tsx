@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { EditorView } from "@uiw/react-codemirror";
 
-import { fetchAdminSettings, fetchChannelModels, saveAdminSettings, syncExternalLLMSettings, testChannelModel, type AdminModelChannel, type AdminModelCost, type AdminSettings } from "@/services/api/admin";
+import { fetchAdminSettings, fetchChannelModels, saveAdminSettings, testChannelModel, type AdminModelChannel, type AdminModelCost, type AdminSettings } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
 
 const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), { ssr: false });
@@ -28,6 +28,7 @@ const emptySettings: AdminSettings = {
     public: {
         modelChannel: {
             availableModels: [],
+            modelNames: {},
             modelCosts: [],
             defaultModel: "",
             defaultImageModel: "",
@@ -71,7 +72,6 @@ export default function AdminSettingsPage() {
     const [isFetchingChannelModels, setIsFetchingChannelModels] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [isSyncingExternal, setIsSyncingExternal] = useState(false);
     const [modelCosts, setModelCosts] = useState<AdminModelCost[]>([]);
     const [knownModels, setKnownModels] = useState<string[]>([]);
     const publicModels = Form.useWatch(["public", "modelChannel", "availableModels"], form) || [];
@@ -138,23 +138,6 @@ export default function AdminSettingsPage() {
             message.error(error instanceof Error ? error.message : "保存失败");
         } finally {
             setIsSaving(false);
-        }
-    };
-
-    const syncExternalSettings = async () => {
-        if (!token) return;
-        setIsSyncingExternal(true);
-        try {
-            const result = await syncExternalLLMSettings(token);
-            await loadSettings();
-            message.success(`已同步 ${result.channels} 个渠道，聊天 ${result.chatModels} 个，生图 ${result.imageModels} 个`);
-            if (result.skipped.length) {
-                message.info(`已跳过：${result.skipped.join("；")}`);
-            }
-        } catch (error) {
-            message.error(error instanceof Error ? error.message : "同步外部 LLM 失败");
-        } finally {
-            setIsSyncingExternal(false);
         }
     };
 
@@ -390,9 +373,6 @@ export default function AdminSettingsPage() {
                         <Space>
                             <Button icon={<ReloadOutlined />} loading={isLoading} onClick={() => void loadSettings()}>
                                 刷新
-                            </Button>
-                            <Button loading={isSyncingExternal} onClick={() => void syncExternalSettings()}>
-                                同步外部 LLM
                             </Button>
                             <Button type="primary" icon={<SaveOutlined />} loading={isSaving} onClick={() => void saveSettings()}>
                                 保存设置
@@ -818,6 +798,7 @@ function normalizePublicSetting(setting: Partial<AdminSettings["public"]> = {}):
             ...emptySettings.public.modelChannel,
             ...(setting.modelChannel || {}),
             availableModels: setting.modelChannel?.availableModels || [],
+            modelNames: setting.modelChannel?.modelNames || {},
             modelCosts: normalizeModelCosts(setting.modelChannel?.modelCosts || []),
         },
     };

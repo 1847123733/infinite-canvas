@@ -667,11 +667,14 @@ ipcMain.handle('desktop-app-get-version', () => config.appVersion)
 ipcMain.handle('desktop-app-get-cloud-base-url', () => config.cloudBaseUrl)
 ipcMain.handle('check-update', async () => {
   try {
+    if (!config.cloudBaseUrl) {
+      return null
+    }
     const params = new URLSearchParams({
       platform: updatePlatform(),
       arch: process.arch
     })
-    const response = await fetch(`http://127.0.0.1:${config.apiPort}/api/update/check?${params.toString()}`)
+    const response = await fetch(`${config.cloudBaseUrl.replace(/\/+$/, '')}/api/infinite-canvas/updates/latest?${params.toString()}`)
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
     }
@@ -688,10 +691,11 @@ ipcMain.handle('check-update', async () => {
         fileSize: number
         status: string
       } | null
-      msg: string
+      message?: string
+      msg?: string
     }
     if (payload.code !== 0) {
-      throw new Error(payload.msg || '请求失败')
+      throw new Error(payload.message || payload.msg || '请求失败')
     }
     if (!payload.data) {
       return null

@@ -23,6 +23,7 @@ export function ModelPicker({ config, value, onChange, capability, className, fu
     const [open, setOpen] = useState(false);
     const options = useMemo(() => Array.from(new Set([...(config.channelMode === "local" && !capability ? [value] : []), ...selectableModelsByCapability(config, capability)].filter((model): model is string => Boolean(model)))), [capability, config, value]);
     const current = value || "";
+    const currentLabel = modelDisplayName(config, current);
 
     useEffect(() => {
         const closeOtherPicker = (event: Event) => {
@@ -52,10 +53,10 @@ export function ModelPicker({ config, value, onChange, capability, className, fu
                 )}
                 onMouseDown={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
-                title={current || placeholder}
+                title={current ? modelTitle(config, current) : placeholder}
             >
                 <ModelIcon model={current} />
-                <span className="canvas-model-picker-text min-w-0 flex-1 truncate text-left">{current || placeholder}</span>
+                <span className="canvas-model-picker-text min-w-0 flex-1 truncate text-left">{currentLabel || placeholder}</span>
             </SelectTrigger>
             <SelectContent
                 data-canvas-no-zoom
@@ -70,7 +71,7 @@ export function ModelPicker({ config, value, onChange, capability, className, fu
                 {options.length ? (
                     options.map((model) => (
                         <SelectItem key={model} value={model} textValue={model}>
-                            <ModelLabel model={model} />
+                            <ModelLabel config={config} model={model} />
                         </SelectItem>
                     ))
                 ) : (
@@ -90,13 +91,24 @@ function emptyModelLabel(config: AiConfig, capability?: ModelCapability) {
     return config.models.length ? `暂无匹配的${label}模型` : "请先到配置里拉取模型列表";
 }
 
-function ModelLabel({ model }: { model: string }) {
+function ModelLabel({ config, model }: { config: AiConfig; model: string }) {
+    const label = modelDisplayName(config, model);
     return (
         <span className="flex min-w-0 items-center gap-2">
             <ModelIcon model={model} />
-            <span className="truncate">{model}</span>
+            <span className="min-w-0 flex-1 truncate">{label}</span>
+            {label !== model ? <span className="max-w-[9rem] shrink truncate text-xs opacity-55">{model}</span> : null}
         </span>
     );
+}
+
+function modelDisplayName(config: AiConfig, model: string) {
+    return model ? config.modelNames?.[model] || model : "";
+}
+
+function modelTitle(config: AiConfig, model: string) {
+    const label = modelDisplayName(config, model);
+    return label === model ? model : `${label} (${model})`;
 }
 
 function ModelIcon({ model }: { model: string }) {

@@ -91,6 +91,10 @@ export function cloudCurrentUser(baseUrl: string, token: string) {
     return cloudRequest<CloudCurrentUser>(baseUrl, "/auth/me", { token });
 }
 
+export function cloudModelChannel<T>(baseUrl: string, token: string) {
+    return cloudRequest<T>(baseUrl, "/settings/model-channel", { token });
+}
+
 export function cloudLogout(baseUrl: string, token: string) {
     return cloudRequest<null>(baseUrl, "/auth/logout", { body: {}, token });
 }

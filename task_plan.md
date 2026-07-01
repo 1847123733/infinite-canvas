@@ -1,3 +1,37 @@
+# Task Plan: PSD Workbench Discovery And Design
+
+## Current Task Goal
+Analyze the existing desktop cloud LLM login/config flow and the reference `chatgpt2api` PSD generation modules, then propose a scoped design for adding a desktop `PSD工作台` with built-in prompt, reference image upload, async task creation, and generation status.
+
+## Current Task Phase
+Phase 1
+
+## Current Task Phases
+
+### Phase 1: Discovery
+- [x] Review current login/cloud LLM config flow in `infinite-canvas`
+- [x] Locate and read PSD generation code in the `chatgpt2api` reference project
+- [x] Document relevant files and API contracts in `findings.md`
+- **Status:** complete
+
+### Phase 2: Design
+- [x] Propose 2-3 integration approaches with trade-offs
+- [x] Recommend the smallest architecture that fits the desktop app
+- [ ] Ask user to approve the design before implementation
+- **Status:** in_progress
+
+### Phase 3: Implementation
+- [ ] Add the approved frontend/API/store changes
+- [ ] Update required docs/todo/pending-test files
+- [ ] Avoid build, full typecheck, and ESLint per project instruction
+- **Status:** pending
+
+### Phase 4: Delivery
+- [ ] Summarize changed files and verification notes
+- **Status:** pending
+
+---
+
 # Task Plan: Desktop And Cloud Development Plans
 
 ## Goal

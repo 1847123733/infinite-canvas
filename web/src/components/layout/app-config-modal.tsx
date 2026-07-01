@@ -79,9 +79,9 @@ export function AppConfigModal() {
         setSyncingCloudModels(true);
         try {
             const settings = await syncPublicSettings();
-            message.success(`已同步云端控制 LLM 配置，当前可用 ${settings.modelChannel.availableModels.length} 个模型`);
+            message.success(`已刷新云端控制 LLM 配置，当前可用 ${settings.modelChannel.availableModels.length} 个模型`);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "同步云端控制 LLM 配置失败");
+            message.error(error instanceof Error ? error.message : "刷新云端控制 LLM 配置失败");
         } finally {
             setSyncingCloudModels(false);
         }
@@ -165,10 +165,10 @@ export function AppConfigModal() {
                             <div>
                                 <div className="font-medium text-stone-900 dark:text-stone-100">云端渠道</div>
                                 <div className="mt-1">由系统后台渠道转发请求，当前可用 {modelChannel?.availableModels.length || 0} 个模型。</div>
-                                <div className="mt-1 text-xs text-stone-400">点击后会先把云端控制的 LLM 配置同步到本地缓存，再刷新当前可用模型；所有用户都可以使用。</div>
+                                <div className="mt-1 text-xs text-stone-400">点击后会直接读取云端控制服务的可用模型，不再经过本地数据库同步。</div>
                             </div>
                             <Button size="small" loading={syncingCloudModels || isPublicSettingsLoading} onClick={() => void syncCloudModels()}>
-                                同步云端控制 LLM 配置
+                                刷新云端控制 LLM 配置
                             </Button>
                         </div>
                     </div>

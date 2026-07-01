@@ -23,19 +23,6 @@ func Settings(w http.ResponseWriter, r *http.Request) {
 	OK(w, settings)
 }
 
-func SyncCloudControlledSettings(w http.ResponseWriter, r *http.Request) {
-	if _, err := service.SyncExternalVbenLLMSettings(); err != nil {
-		FailError(w, err)
-		return
-	}
-	settings, err := service.PublicSettings()
-	if err != nil {
-		FailError(w, err)
-		return
-	}
-	OK(w, settings)
-}
-
 func AdminSettings(w http.ResponseWriter, r *http.Request) {
 	settings, err := service.AdminSettings()
 	if err != nil {
@@ -71,15 +58,6 @@ func AdminTestChannelModel(w http.ResponseWriter, r *http.Request) {
 	var request adminChannelActionRequest
 	_ = json.NewDecoder(r.Body).Decode(&request)
 	result, err := service.AdminTestChannelModel(request.Index, request.Channel, request.Model)
-	if err != nil {
-		FailError(w, err)
-		return
-	}
-	OK(w, result)
-}
-
-func AdminSyncExternalLLMSettings(w http.ResponseWriter, r *http.Request) {
-	result, err := service.SyncExternalVbenLLMSettings()
 	if err != nil {
 		FailError(w, err)
 		return

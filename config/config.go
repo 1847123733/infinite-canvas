@@ -10,17 +10,16 @@ import (
 )
 
 type Config struct {
-	BindAddr                string `env:"BIND_ADDR" envDefault:"0.0.0.0"`
-	Port                    string `env:"PORT" envDefault:"8080"`
-	AdminUsername           string `env:"ADMIN_USERNAME" envDefault:"admin"`
-	AdminPassword           string `env:"ADMIN_PASSWORD" envDefault:"infinite-canvas"`
-	JWTSecret               string `env:"JWT_SECRET" envDefault:"infinite-canvas"`
-	JWTExpireHours          int    `env:"JWT_EXPIRE_HOURS" envDefault:"168"`
-	StorageDriver           string `env:"STORAGE_DRIVER" envDefault:"sqlite"`
-	DatabaseDSN             string `env:"DATABASE_DSN" envDefault:"data/infinite-canvas.db"`
-	ExternalVbenDatabaseDSN string `env:"EXTERNAL_VBEN_DATABASE_DSN"`
-	InfiniteCanvasCloudURL  string `env:"INFINITE_CANVAS_CLOUD_BASE_URL"`
-	PublicBaseURL           string `env:"PUBLIC_BASE_URL"`
+	BindAddr               string `env:"BIND_ADDR" envDefault:"0.0.0.0"`
+	Port                   string `env:"PORT" envDefault:"8080"`
+	AdminUsername          string `env:"ADMIN_USERNAME" envDefault:"admin"`
+	AdminPassword          string `env:"ADMIN_PASSWORD" envDefault:"infinite-canvas"`
+	JWTSecret              string `env:"JWT_SECRET" envDefault:"infinite-canvas"`
+	JWTExpireHours         int    `env:"JWT_EXPIRE_HOURS" envDefault:"168"`
+	StorageDriver          string `env:"STORAGE_DRIVER" envDefault:"sqlite"`
+	DatabaseDSN            string `env:"DATABASE_DSN" envDefault:"data/infinite-canvas.db"`
+	InfiniteCanvasCloudURL string `env:"INFINITE_CANVAS_CLOUD_BASE_URL"`
+	PublicBaseURL          string `env:"PUBLIC_BASE_URL"`
 }
 
 var Cfg Config

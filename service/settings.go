@@ -75,6 +75,9 @@ func normalizePublicSettingWithChannels(setting model.PublicSetting, channels []
 	if setting.ModelChannel.AvailableModels == nil {
 		setting.ModelChannel.AvailableModels = []string{}
 	}
+	if setting.ModelChannel.ModelNames == nil {
+		setting.ModelChannel.ModelNames = map[string]string{}
+	}
 	if setting.ModelChannel.ModelCosts == nil {
 		setting.ModelChannel.ModelCosts = []model.ModelCost{}
 	}
@@ -94,6 +97,19 @@ func normalizePublicSettingWithChannels(setting model.PublicSetting, channels []
 	} else {
 		setting.ModelChannel.AvailableModels = uniqueModelNames(setting.ModelChannel.AvailableModels)
 	}
+	allowedModels := map[string]bool{}
+	for _, item := range setting.ModelChannel.AvailableModels {
+		allowedModels[item] = true
+	}
+	modelNames := map[string]string{}
+	for modelName, displayName := range setting.ModelChannel.ModelNames {
+		modelName = strings.TrimSpace(modelName)
+		displayName = strings.TrimSpace(displayName)
+		if modelName != "" && displayName != "" && allowedModels[modelName] {
+			modelNames[modelName] = displayName
+		}
+	}
+	setting.ModelChannel.ModelNames = modelNames
 	setting.ModelChannel.DefaultTextModel = repairDefaultModel(setting.ModelChannel.DefaultTextModel, setting.ModelChannel.AvailableModels, isTextModelName)
 	setting.ModelChannel.DefaultImageModel = repairDefaultModel(setting.ModelChannel.DefaultImageModel, setting.ModelChannel.AvailableModels, isImageModelName)
 	setting.ModelChannel.DefaultVideoModel = repairDefaultModel(setting.ModelChannel.DefaultVideoModel, setting.ModelChannel.AvailableModels, isVideoModelName)
