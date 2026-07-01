@@ -5,7 +5,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import type { AdminPublicSettings } from "@/services/api/admin";
-import { fetchCloudPublicSettings, fetchPublicSettings } from "@/services/api/settings";
+import { fetchCloudPublicSettings, fetchPublicSettings, syncDesktopCloudPublicSettings } from "@/services/api/settings";
 import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
 
 export type AiConfig = {
@@ -214,7 +214,15 @@ async function syncCurrentPublicSettings() {
         if (state.isDesktopCloud) throw new Error("请先登录云端账号");
         return fetchPublicSettings();
     }
+    if (typeof window !== "undefined" && statefulDesktopCloudSync()) {
+        return syncDesktopCloudPublicSettings();
+    }
     return fetchCloudPublicSettings(cloud.baseUrl, cloud.token);
+}
+
+function statefulDesktopCloudSync() {
+    const cloud = useCloudAuthStore.getState();
+    return cloud.isDesktopCloud && Boolean(cloud.accessToken) && Boolean(cloud.cloudBaseUrl) && Boolean(window.desktopApp);
 }
 
 export const useConfigStore = create<ConfigStore>()(

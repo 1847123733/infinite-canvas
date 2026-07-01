@@ -61,6 +61,62 @@ func AdminTestChannelModel(index *int, channel model.ModelChannel, modelName str
 	return testAdminChannelModel(resolved, modelName)
 }
 
+type desktopCloudModelChannelSyncPayload struct {
+	ModelChannel model.PublicModelChannelSetting `json:"modelChannel"`
+	Public       *struct {
+		ModelChannel model.PublicModelChannelSetting `json:"modelChannel"`
+	} `json:"public"`
+	Channels *[]model.ModelChannel `json:"channels"`
+	Private  *struct {
+		Channels *[]model.ModelChannel `json:"channels"`
+	} `json:"private"`
+}
+
+func (payload desktopCloudModelChannelSyncPayload) resolvedModelChannel() model.PublicModelChannelSetting {
+	if payload.Public != nil {
+		return payload.Public.ModelChannel
+	}
+	return payload.ModelChannel
+}
+
+func (payload desktopCloudModelChannelSyncPayload) resolvedChannels() ([]model.ModelChannel, bool) {
+	if payload.Private != nil && payload.Private.Channels != nil {
+		return *payload.Private.Channels, true
+	}
+	if payload.Channels != nil {
+		return *payload.Channels, true
+	}
+	return nil, false
+}
+
+func SyncDesktopCloudModelChannel(authHeader string) (model.PublicSetting, error) {
+	if strings.TrimSpace(authHeader) == "" {
+		return model.PublicSetting{}, safeMessageError{message: "缺少云端登录令牌，请重新登录后再同步"}
+	}
+	payload, err := desktopCloudJSONRequest[desktopCloudModelChannelSyncPayload](http.MethodGet, "/api/infinite-canvas/settings/model-channel", authHeader, "", nil)
+	if err != nil {
+		return model.PublicSetting{}, err
+	}
+	channels, ok := payload.resolvedChannels()
+	if !ok {
+		return model.PublicSetting{}, safeMessageError{message: "云端未返回可同步的模型渠道配置"}
+	}
+	settings, err := repository.GetSettings()
+	if err != nil {
+		return model.PublicSetting{}, err
+	}
+	settings.Public.ModelChannel = payload.resolvedModelChannel()
+	settings.Private = normalizePrivateSetting(settings.Private)
+	settings.Private.Channels = channels
+	settings = normalizeSettings(settings)
+	result, err := repository.SaveSettings(settings, now())
+	if err != nil {
+		return model.PublicSetting{}, err
+	}
+	RefreshPromptSyncScheduler()
+	return result.Public, nil
+}
+
 func normalizeSettings(settings model.Settings) model.Settings {
 	settings.Private = normalizePrivateSetting(settings.Private)
 	settings.Public = normalizePublicSettingWithChannels(settings.Public, settings.Private.Channels)

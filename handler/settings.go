@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/basketikun/infinite-canvas/model"
 	"github.com/basketikun/infinite-canvas/service"
@@ -63,4 +64,13 @@ func AdminTestChannelModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	OK(w, result)
+}
+
+func SyncDesktopCloudModelChannel(w http.ResponseWriter, r *http.Request) {
+	settings, err := service.SyncDesktopCloudModelChannel(strings.TrimSpace(r.Header.Get("Authorization")))
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, settings)
 }
