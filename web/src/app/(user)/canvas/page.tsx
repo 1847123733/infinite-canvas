@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { App, Button } from "antd";
-import { Download, FileUp, Plus } from "lucide-react";
+import { App, Button, Input } from "antd";
+import { Download, FileUp, Plus, Search } from "lucide-react";
 
 import { readZip } from "@/lib/zip";
 import { setMediaBlob } from "@/services/file-storage";
@@ -19,12 +19,18 @@ export default function CanvasPage() {
     const { message } = App.useApp();
     const router = useRouter();
     const inputRef = useRef<HTMLInputElement>(null);
+    const [searchKeyword, setSearchKeyword] = useState("");
     const hydrated = useCanvasStore((state) => state.hydrated);
     const projects = useCanvasStore((state) => state.projects);
     const createProject = useCanvasStore((state) => state.createProject);
     const importProject = useCanvasStore((state) => state.importProject);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
+    const filteredProjects = useMemo(() => {
+        const keyword = searchKeyword.trim().toLowerCase();
+        if (!keyword) return projects;
+        return projects.filter((project) => project.title.toLowerCase().includes(keyword));
+    }, [projects, searchKeyword]);
 
     const enterProject = (id: string) => {
         router.push(`/canvas/${id}`);
@@ -64,7 +70,15 @@ export default function CanvasPage() {
                         <p className="text-xs text-stone-500">画布库</p>
                         <h1 className="mt-3 text-3xl font-semibold">无限画布</h1>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Input
+                            allowClear
+                            className="w-64 max-w-full"
+                            prefix={<Search className="size-4 text-stone-400" />}
+                            placeholder="搜索画布名称"
+                            value={searchKeyword}
+                            onChange={(event) => setSearchKeyword(event.target.value)}
+                        />
                         {selectedIds.length ? (
                             <>
                                 <Button disabled={!hydrated} icon={<Download className="size-4" />} onClick={() => void exportCanvasProjects(projects.filter((project) => selectedIds.includes(project.id)), `无限画布-${selectedIds.length}个项目`)}>
@@ -93,9 +107,15 @@ export default function CanvasPage() {
                     <section className="flex min-h-[360px] items-center justify-center border-y border-stone-200 text-sm text-stone-500 dark:border-stone-800">正在加载画布...</section>
                 ) : projects.length ? (
                     <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                        {projects.map((project) => (
+                        {filteredProjects.map((project) => (
                             <CanvasProjectCard key={project.id} project={project} />
                         ))}
+                        {!filteredProjects.length ? (
+                            <section className="col-span-full flex min-h-[240px] flex-col items-center justify-center border-y border-stone-200 text-center dark:border-stone-800">
+                                <h2 className="text-xl font-medium">没有匹配的画布</h2>
+                                <p className="mt-3 text-sm text-stone-500">换个名称关键词试试。</p>
+                            </section>
+                        ) : null}
                     </div>
                 ) : (
                     <section className="flex min-h-[360px] flex-col items-center justify-center border-y border-stone-200 text-center dark:border-stone-800">

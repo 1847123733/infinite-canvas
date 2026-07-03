@@ -31,10 +31,8 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
             void validateCloudSession();
         };
         window.addEventListener("focus", validate);
-        const timer = window.setInterval(validate, 30_000);
         return () => {
             window.removeEventListener("focus", validate);
-            window.clearInterval(timer);
         };
     }, [accessToken, validateCloudSession]);
 

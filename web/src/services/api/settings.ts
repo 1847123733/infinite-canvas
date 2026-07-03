@@ -12,7 +12,7 @@ export async function fetchCloudPublicSettings(baseUrl: string, token: string) {
 }
 
 export async function syncDesktopCloudPublicSettings() {
-    const token = useCloudAuthStore.getState().accessToken;
+    const token = await useCloudAuthStore.getState().getValidAccessToken();
     if (!token) throw new Error("请先登录云端账号");
     return apiPost<AdminPublicSettings>("/api/v1/settings/model-channel/sync", {}, token);
 }

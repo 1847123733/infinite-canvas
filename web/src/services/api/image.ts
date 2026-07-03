@@ -1,6 +1,7 @@
 import axios from "axios";
 
-import { refreshRemoteUser, remoteAuthToken } from "@/services/api/ai-auth";
+import { ensureRemoteAuthToken, refreshRemoteUser, withRemoteAuthRetry } from "@/services/api/ai-auth";
+import { CloudApiError } from "@/services/api/cloud-auth";
 import { createCloudGenerationTicket } from "@/services/api/cloud-generation";
 import { buildApiUrl, type AiConfig } from "@/stores/use-config-store";
 import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
@@ -174,8 +175,8 @@ function aiApiUrl(config: AiConfig, path: string) {
     return config.channelMode === "remote" ? `/api/v1${path}` : buildApiUrl(config.baseUrl, path);
 }
 
-function aiHeaders(config: AiConfig, contentType?: string) {
-    const token = remoteAuthToken();
+async function aiHeaders(config: AiConfig, contentType?: string) {
+    const token = await ensureRemoteAuthToken(config);
     return config.channelMode === "remote"
         ? {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -206,17 +207,26 @@ async function requestDesktopCloudImage(
     mask?: ReferenceImage,
 ) {
     const cloud = useCloudAuthStore.getState();
-    if (!cloud.accessToken || !cloud.cloudBaseUrl || !window.desktopApp) {
+    if (!cloud.cloudBaseUrl || !window.desktopApp) {
         throw new Error("桌面云端登录已失效，请重新登录");
     }
+    let token = await cloud.getValidAccessToken();
     const deviceId = await window.desktopApp.getDeviceId();
-    const ticket = await createCloudGenerationTicket(cloud.cloudBaseUrl, cloud.accessToken, {
+    const ticketPayload = {
         modelId: config.model,
         scene: inferDesktopGenerationScene(),
         userPrompt,
         finalPrompt,
         requestMeta,
-    });
+    };
+    let ticket;
+    try {
+        ticket = await createCloudGenerationTicket(cloud.cloudBaseUrl, token, ticketPayload);
+    } catch (error) {
+        if (!(error instanceof CloudApiError) || error.status !== 401) throw error;
+        token = await cloud.refreshSession();
+        ticket = await createCloudGenerationTicket(cloud.cloudBaseUrl, token, ticketPayload);
+    }
     const formData = new FormData();
     formData.set("ticket_id", ticket.ticketId);
     formData.set("ticket_token", ticket.ticketToken);
@@ -226,7 +236,7 @@ async function requestDesktopCloudImage(
     if (mask) formData.set("mask", dataUrlToFile(mask));
     const response = await axios.post<ImageApiResponse>("/api/v1/desktop/images/generations", formData, {
         headers: {
-            Authorization: `Bearer ${cloud.accessToken}`,
+            Authorization: `Bearer ${token}`,
         },
     });
     return parseImagePayload(response.data);
@@ -250,22 +260,24 @@ export async function requestGeneration(config: AiConfig, prompt: string) {
             refreshRemoteUser(config);
             return images;
         }
-        const response = await axios.post<ImageApiResponse>(
-            aiApiUrl(config, "/images/generations"),
-            {
-                model: config.model,
-                prompt: withSystemPrompt(config, prompt),
-                n,
-                ...(quality ? { quality } : {}),
-                ...(requestSize ? { size: requestSize } : {}),
-                response_format: "b64_json",
-                output_format: IMAGE_OUTPUT_FORMAT,
-            },
-            {
-                headers: aiHeaders(config, "application/json"),
-            },
-        );
-        const images = parseImagePayload(response.data);
+        const images = await withRemoteAuthRetry(config, async () => {
+            const response = await axios.post<ImageApiResponse>(
+                aiApiUrl(config, "/images/generations"),
+                {
+                    model: config.model,
+                    prompt: withSystemPrompt(config, prompt),
+                    n,
+                    ...(quality ? { quality } : {}),
+                    ...(requestSize ? { size: requestSize } : {}),
+                    response_format: "b64_json",
+                    output_format: IMAGE_OUTPUT_FORMAT,
+                },
+                {
+                    headers: await aiHeaders(config, "application/json"),
+                },
+            );
+            return parseImagePayload(response.data);
+        });
         refreshRemoteUser(config);
         return images;
     } catch (error) {
@@ -317,8 +329,10 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
     if (mask) formData.set("mask", dataUrlToFile(mask));
 
     try {
-        const response = await axios.post<ImageApiResponse>(aiApiUrl(config, "/images/edits"), formData, { headers: aiHeaders(config) });
-        const images = parseImagePayload(response.data);
+        const images = await withRemoteAuthRetry(config, async () => {
+            const response = await axios.post<ImageApiResponse>(aiApiUrl(config, "/images/edits"), formData, { headers: await aiHeaders(config) });
+            return parseImagePayload(response.data);
+        });
         refreshRemoteUser(config);
         return images;
     } catch (error) {
@@ -332,34 +346,60 @@ export async function requestImageQuestion(config: AiConfig, messages: ChatCompl
     let processedLength = 0;
 
     try {
-        const response = await axios.post(
-            aiApiUrl(config, "/chat/completions"),
-            {
-                model: config.model,
-                messages: withSystemMessage(config, messages),
-                stream: true,
-            },
-            {
-                headers: {
-                    ...aiHeaders(config, "application/json"),
-                } as Record<string, string>,
-                responseType: "text",
-                onDownloadProgress: (event) => {
-                    const responseText = String(event.event?.target?.responseText || "");
-                    const nextText = responseText.slice(processedLength);
-                    processedLength = responseText.length;
-                    buffer += nextText;
-                    const chunks = buffer.split("\n\n");
-                    buffer = chunks.pop() || "";
-                    for (const chunk of chunks) {
-                        parseStreamChunk(chunk, (delta) => {
-                            answer += delta;
-                            onDelta(answer);
-                        });
-                    }
+        const response = await withRemoteAuthRetry(config, async () => {
+            const result = await axios.post(
+                aiApiUrl(config, "/chat/completions"),
+                {
+                    model: config.model,
+                    messages: withSystemMessage(config, messages),
+                    stream: true,
                 },
-            },
-        );
+                {
+                    headers: {
+                        ...(await aiHeaders(config, "application/json")),
+                    } as Record<string, string>,
+                    responseType: "text",
+                    onDownloadProgress: (event) => {
+                        const responseText = String(event.event?.target?.responseText || "");
+                        const nextText = responseText.slice(processedLength);
+                        processedLength = responseText.length;
+                        buffer += nextText;
+                        const chunks = buffer.split("\n\n");
+                        buffer = chunks.pop() || "";
+                        for (const chunk of chunks) {
+                            parseStreamChunk(chunk, (delta) => {
+                                answer += delta;
+                                onDelta(answer);
+                            });
+                        }
+                    },
+                },
+            );
+            if (typeof result.data === "object" && result.data && "code" in result.data && (result.data as { code?: number; msg?: string }).code !== 0) {
+                buffer = "";
+                answer = "";
+                processedLength = 0;
+                throw new Error((result.data as { msg?: string }).msg || "请求失败");
+            }
+            if (typeof result.data === "string") {
+                let apiError = "";
+                try {
+                    const payload = JSON.parse(result.data) as { code?: number; msg?: string };
+                    if (typeof payload.code === "number" && payload.code !== 0) {
+                        apiError = payload.msg || "请求失败";
+                    }
+                } catch {
+                    // ignore plain text stream content
+                }
+                if (apiError) {
+                    buffer = "";
+                    answer = "";
+                    processedLength = 0;
+                    throw new Error(apiError);
+                }
+            }
+            return result;
+        });
         if (typeof response.data === "object" && response.data && "code" in response.data && (response.data as { code?: number; msg?: string }).code !== 0) {
             throw new Error((response.data as { msg?: string }).msg || "请求失败");
         }

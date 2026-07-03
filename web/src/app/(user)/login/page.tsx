@@ -1,7 +1,7 @@
 "use client";
 
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
-import { App, Button, Form, Input } from "antd";
+import { App, Button, Checkbox, Form, Input } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 
@@ -10,7 +10,32 @@ import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
 type LoginFormValues = {
     username: string;
     password: string;
+    remember?: boolean;
 };
+
+const REMEMBER_LOGIN_KEY = "infinite-canvas:desktop-login:remember";
+
+function readRememberedLogin(): LoginFormValues | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const raw = window.localStorage.getItem(REMEMBER_LOGIN_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as Partial<LoginFormValues>;
+        if (!parsed.username || !parsed.password) return null;
+        return { username: parsed.username, password: parsed.password, remember: true };
+    } catch {
+        return null;
+    }
+}
+
+function saveRememberedLogin(values: LoginFormValues) {
+    if (typeof window === "undefined") return;
+    if (!values.remember) {
+        window.localStorage.removeItem(REMEMBER_LOGIN_KEY);
+        return;
+    }
+    window.localStorage.setItem(REMEMBER_LOGIN_KEY, JSON.stringify({ username: values.username, password: values.password }));
+}
 
 // 仅放行站内相对路径，拦截开放重定向。浏览器会忽略 URL 中的 Tab/换行/回车，并把
 // //host 或 /\host 解析为协议相对的跨站地址，因此先剥离控制字符，再拒绝 // 与 /\ 前缀。
@@ -32,6 +57,7 @@ export default function LoginPage() {
 
 function LoginContent() {
     const { message } = App.useApp();
+    const [form] = Form.useForm<LoginFormValues>();
     const router = useRouter();
     const searchParams = useSearchParams();
     const cloudLogin = useCloudAuthStore((state) => state.login);
@@ -46,6 +72,11 @@ function LoginContent() {
     }, [message, searchParams]);
 
     useEffect(() => {
+        const remembered = readRememberedLogin();
+        if (remembered) form.setFieldsValue(remembered);
+    }, [form]);
+
+    useEffect(() => {
         if (!cloudUser) return;
         router.replace(redirect);
         router.refresh();
@@ -54,6 +85,7 @@ function LoginContent() {
     const submit = async (values: LoginFormValues) => {
         try {
             await cloudLogin({ username: values.username, password: values.password });
+            saveRememberedLogin(values);
             message.success("登录成功");
             router.replace(redirect);
             router.refresh();
@@ -70,12 +102,15 @@ function LoginContent() {
                     <h1 className="text-3xl font-semibold tracking-normal text-stone-950 dark:text-stone-100">桌面账号登录</h1>
                 </div>
 
-                <Form<LoginFormValues> layout="vertical" size="large" requiredMark={false} onFinish={submit}>
+                <Form<LoginFormValues> form={form} layout="vertical" size="large" requiredMark={false} onFinish={submit}>
                     <Form.Item name="username" label={<span className="font-medium text-stone-800 dark:text-stone-200">用户名</span>} rules={[{ required: true, message: "请输入用户名" }]}>
                         <Input prefix={<UserOutlined />} autoComplete="username" />
                     </Form.Item>
                     <Form.Item name="password" label={<span className="font-medium text-stone-800 dark:text-stone-200">密码</span>} rules={[{ required: true, message: "请输入密码" }]}>
                         <Input.Password prefix={<LockOutlined />} autoComplete="current-password" />
+                    </Form.Item>
+                    <Form.Item name="remember" valuePropName="checked" className="-mt-2 mb-4">
+                        <Checkbox className="text-stone-700 dark:text-stone-300">记住账号密码</Checkbox>
                     </Form.Item>
                     <Button block type="primary" htmlType="submit" disabled={!isCloudReady} loading={!isCloudReady || isCloudLoading}>
                         登录

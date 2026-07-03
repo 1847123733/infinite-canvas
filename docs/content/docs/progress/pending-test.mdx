@@ -5,6 +5,9 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 # 待测试
 
+- 画布库新增“搜索画布名称”输入框，会按画布标题实时过滤当前浏览器本地保存的画布列表；无匹配结果时显示空结果提示。需要验证输入完整/部分名称能筛出对应画布，清空搜索后恢复完整列表。
+- 登录页新增“记住账号密码”复选框；勾选并登录成功后会把用户名和密码保存到浏览器本地，下次打开登录页自动回填，未勾选登录会清除已保存内容。需要验证勾选登录、重启/刷新后回填，以及取消勾选登录后不再回填。
+- Electron 云端登录态现在会记录云端 `accessTokenExpiresIn`，在 access token 接近过期或收到 401/未登录响应时，使用本地加密保存的 refresh token 自动调用云端 `/api/infinite-canvas/auth/refresh` 续期，并更新轮换后的 refresh token；生图、编辑、带图问答、视频、音频、参考素材上传和云端模型配置刷新会先获取有效 access token，过期后自动重试一次。客户端不再每 30 秒轮询 `/auth/me`，只在窗口重新获得焦点和实际业务请求时验证云端会话。需要保持 exe 登录超过 15 分钟后验证顶部账号不掉线，各生成入口和“刷新云端控制 LLM 配置”仍可正常请求；后台强制下线或禁用账号后，切回窗口或发起下一次云端请求时应清空本地登录态并要求重新登录。
 - 云控 `vben-admin-monorepo-template` 新增桌面端模型公开配置接口 `/api/infinite-canvas/settings/model-channel`，桌面端登录后直接请求 Python 获取 `enable_infinite_canvas=true` 的可用模型、展示名和默认模型，不再由本地 Go 直连外部 PostgreSQL 或执行 `/settings/cloud-sync`。需要在云控模型列表里打开指定模型后，验证 exe 端点击“刷新云端控制 LLM 配置”只出现已开启模型，模型下拉显示云端名称但生成请求仍使用真实 `modelName`。
 - 顶部导航和画布右上角现在新增了明确的“检测版本”按钮；点击后会主动请求版本检测，并分别显示“发现新版本 / 当前已是最新版本 / 检测失败，请稍后重试”三种状态。Electron 主进程同时补上了 `check-update` 与 `download-update` IPC：检测会按当前桌面端实际 `platform/arch` 直接请求云端 Python `/api/infinite-canvas/updates/latest`，并且只有远端版本高于当前安装版本时才显示更新信息；Windows 桌面端点击“立即更新”后会在 exe 内部下载安装包，弹窗显示下载进度，下载完成后提示即将启动安装程序并关闭当前应用，再拉起下载好的安装器。非 Windows 或非桌面端仍保留浏览器下载兜底。需要在已安装 `0.0.4`、远端存在 `0.0.5` 发布记录时验证首页和画布页都能手动检测出新版本；远端无更高版本时显示“当前已是最新版本”；接口异常时显示失败提示；Windows 点击“立即更新”后不再弹浏览器下载，而是在弹窗内显示进度、下载完成后关闭旧版并打开安装器。
 - Electron 安装包现在会显式携带 `desktop/resources/env.ini`，并且生产环境主进程读取打包环境文件时会忽略其中的 `NODE_ENV`，避免误切到开发路径；需要重新打包并安装 exe 后验证 `window.desktopApp.getCloudBaseUrl()` 能读到 `INFINITE_CANVAS_CLOUD_BASE_URL`，登录页不再提示“未配置云端控制服务地址”。
@@ -12,7 +15,7 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 桌面云端生图已接入真实票据交换链路：前端远程渠道在桌面云端登录模式下会先向云端创建 `generation ticket`，再把 `ticket_id/ticket_token/device_id/reference_images/mask` 交给本地 Go；Go 会向云端交换一次性快照、按云端下发的最终 Prompt 和图片模型配置生成图片、上传到 `oss://decent-lancheng/daily_orange_ai/infinite_canvas/{user_id}/{yyyy}{mm}{dd}/{random}.png`、再回写 `complete/fail`。当前 `RAM Role ARN` 留空时走临时永久凭证模式，已填写 `RAM Role ARN` 时会明确报“STS 临时凭证模式尚未接通”。需要重启云端 `ai-server` 和本地 Go/Next 进程后验证 `/image`、画布普通生图、画布参考图生图、局部编辑 mask、生图失败回写，以及 OSS 中对象路径和管理端 `desktop_generation_tasks` 状态是否一致。
 - 用户端收敛为桌面云端登录：`/login` 去掉本地 `/api/auth/login`、注册、Linux.do 和 token 回调分支，只调用云端桌面认证；Go 本地服务移除公开注册、本地用户登录、Linux.do OAuth 路由和对应配置字段；顶部账号状态不再读取本地用户 store，生成请求只携带云端 `accessToken`；同时移除用户端算力点余额/生成消耗展示、画布和工作台提示词库入口，以及可直达的用户提示词库页面。需要重新启动桌面端开发进程或重新打包 exe 后验证登录、生成、强制下线和各生成入口。
 - Electron 云端账号登录后，本地 Go `/api/v1` 生成接口新增桌面云端 token 鉴权：前端远程渠道生图、对话、视频、音频和参考素材上传会优先携带云端 `accessToken`，本地 Go 会转调云端 `/api/infinite-canvas/auth/me` 校验 `canGenerate` 后放行，桌面云端用户不再走本地积分扣减；需要重启桌面端 Go/Next 进程或重新打包 exe 后验证登录后可生成、后台强制下线后生成请求会失败。
-- Electron 云端登录态新增持续校验：桌面云端模式下不再回退显示本地旧账号，窗口重新获得焦点或每 30 秒会调用云端 `/api/infinite-canvas/auth/me`；需要验证后台“桌面会话”强制下线后，exe 顶部账号菜单会自动消失并显示登录入口。
+- Electron 云端登录态新增持续校验：桌面云端模式下不再回退显示本地旧账号，窗口重新获得焦点时会调用云端 `/api/infinite-canvas/auth/me`；需要验证后台“桌面会话”强制下线后，exe 顶部账号菜单会在重新聚焦或下一次云端请求后自动消失并显示登录入口。
 - 修复 `vben-admin-monorepo-template` 桌面会话列表接口的 SQLAlchemy count 查询和时区时间比较问题，显式指定 `desktop_sessions` 作为查询来源，并统一使用 UTC aware 时间，避免 `/api/infinite-canvas/admin/sessions` 返回 500；需要重启云端 `ai-server` 后验证桌面会话页面空数据和有数据时都能正常加载。
 - Electron 开发启动脚本会在 `npm run dev` 前读取 `desktop/.env` 并注入环境变量；当前只需要验证真实 `desktop/.env` 中的 `INFINITE_CANVAS_CLOUD_BASE_URL` 能传入 Electron、Go API 和 Next.js 子进程。
 - Electron 桌面版品牌图标与安装器链路已调整：登录页、顶部导航和管理后台侧边栏不再用 `logo.svg mask`，改为直接显示彩色 logo；Windows 主窗口额外显式设置 `BrowserWindow icon` 和 `AppUserModelId`；Windows 打包额外显式设置 `executableName=Infinite Canvas Desktop`，让安装后的快捷方式目标改成新的 `exe` 文件名，尽量减少 Explorer 复用旧图标缓存；NSIS 升级安装时会强制重建桌面快捷方式，并优先尝试优雅关闭已运行的旧版应用后再继续安装。需要重新启动桌面端开发进程或重新打包 exe 后验证登录页、顶部导航、管理后台品牌区、窗口左上角、任务栏图标、桌面快捷方式图标、安装目录中的 `Infinite Canvas Desktop.exe`，以及“旧版运行中时再次安装”流程。

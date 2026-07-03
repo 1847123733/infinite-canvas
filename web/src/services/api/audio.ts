@@ -1,7 +1,7 @@
 import axios from "axios";
 
 import { audioMimeType, normalizeAudioFormatValue, normalizeAudioSpeedValue, normalizeAudioVoiceValue } from "@/lib/audio-generation";
-import { refreshRemoteUser, remoteAuthToken } from "@/services/api/ai-auth";
+import { ensureRemoteAuthToken, refreshRemoteUser, withRemoteAuthRetry } from "@/services/api/ai-auth";
 import { uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { buildApiUrl, type AiConfig } from "@/stores/use-config-store";
 
@@ -9,8 +9,8 @@ function aiApiUrl(config: AiConfig, path: string) {
     return config.channelMode === "remote" ? `/api/v1${path}` : buildApiUrl(config.baseUrl, path);
 }
 
-function aiHeaders(config: AiConfig) {
-    const token = remoteAuthToken();
+async function aiHeaders(config: AiConfig) {
+    const token = await ensureRemoteAuthToken(config);
     return config.channelMode === "remote"
         ? {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -29,19 +29,22 @@ export async function requestAudioGeneration(config: AiConfig, prompt: string): 
     const instructions = config.audioInstructions.trim();
 
     try {
-        const response = await axios.post<Blob>(
-            aiApiUrl(config, "/audio/speech"),
-            {
-                model,
-                input: prompt,
-                voice: normalizeAudioVoiceValue(config.audioVoice),
-                response_format: format,
-                speed: Number(normalizeAudioSpeedValue(config.audioSpeed)),
-                ...(instructions ? { instructions } : {}),
-            },
-            { headers: aiHeaders(config), responseType: "blob" },
-        );
-        await assertAudioBlob(response.data);
+        const response = await withRemoteAuthRetry(config, async () => {
+            const result = await axios.post<Blob>(
+                aiApiUrl(config, "/audio/speech"),
+                {
+                    model,
+                    input: prompt,
+                    voice: normalizeAudioVoiceValue(config.audioVoice),
+                    response_format: format,
+                    speed: Number(normalizeAudioSpeedValue(config.audioSpeed)),
+                    ...(instructions ? { instructions } : {}),
+                },
+                { headers: await aiHeaders(config), responseType: "blob" },
+            );
+            await assertAudioBlob(result.data);
+            return result;
+        });
         refreshRemoteUser(config);
         return response.data.type.startsWith("audio/") ? response.data : new Blob([response.data], { type: audioMimeType(format) });
     } catch (error) {

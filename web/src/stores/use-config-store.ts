@@ -196,19 +196,20 @@ function isAiConfigReady(_config: AiConfig, model: string) {
     return Boolean(model.trim());
 }
 
-function desktopCloudSettingsSource() {
+async function desktopCloudSettingsSource() {
     const cloud = useCloudAuthStore.getState();
     if (!cloud.isDesktopCloud || !cloud.cloudBaseUrl) return null;
-    return cloud.accessToken ? { baseUrl: cloud.cloudBaseUrl, token: cloud.accessToken } : null;
+    const token = await cloud.getValidAccessToken();
+    return token ? { baseUrl: cloud.cloudBaseUrl, token } : null;
 }
 
 async function loadCurrentPublicSettings() {
-    const cloud = desktopCloudSettingsSource();
+    const cloud = await desktopCloudSettingsSource();
     return cloud ? fetchCloudPublicSettings(cloud.baseUrl, cloud.token) : fetchPublicSettings();
 }
 
 async function syncCurrentPublicSettings() {
-    const cloud = desktopCloudSettingsSource();
+    const cloud = await desktopCloudSettingsSource();
     if (!cloud) {
         const state = useCloudAuthStore.getState();
         if (state.isDesktopCloud) throw new Error("请先登录云端账号");
