@@ -1,10 +1,10 @@
 "use client";
 
 import { App, Button, Empty, Image, Progress, Tag, Typography } from "antd";
-import { Archive, Clock3, Download, FileJson, FileType2, ImageUp, Layers3, LoaderCircle, Play, RotateCcw, Trash2, type LucideIcon } from "lucide-react";
+import { Archive, CircleStop, Clock3, Download, FileJson, FileType2, ImageUp, Layers3, LoaderCircle, Play, Plus, RotateCcw, Trash2, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { createPSDTask, fetchPSDTaskFile, type PSDTaskFile } from "@/services/api/psd";
+import { cancelPSDTask, createPSDTask, fetchPSDTaskFile, type PSDTaskFile } from "@/services/api/psd";
 import { formatDuration } from "@/lib/image-utils";
 import { usePSDTaskStore } from "@/stores/use-psd-task-store";
 
@@ -31,6 +31,7 @@ export default function PSDWorkbenchPage() {
     const inputRef = useRef<HTMLInputElement>(null);
     const [file, setFile] = useState<File | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [canceling, setCanceling] = useState(false);
     const [elapsedMs, setElapsedMs] = useState(0);
     const [previewUrl, setPreviewUrl] = useState("");
     const [sourceUrl, setSourceUrl] = useState("");
@@ -75,9 +76,15 @@ export default function PSDWorkbenchPage() {
     }, [file?.name, message, task]);
 
     useEffect(() => {
-        if (task?.status !== "success") return;
+        if (task?.status !== "success") {
+            setPreviewUrl("");
+            return;
+        }
         const preview = task.files.find((item) => item.name === "preview");
-        if (!preview) return;
+        if (!preview) {
+            setPreviewUrl("");
+            return;
+        }
         let url = "";
         void fetchPSDTaskFile(preview.url)
             .then((blob) => {
@@ -95,6 +102,7 @@ export default function PSDWorkbenchPage() {
         if (!task) return <Tag>待开始</Tag>;
         if (task.status === "success") return <Tag color="success">已完成</Tag>;
         if (task.status === "failed") return <Tag color="error">失败</Tag>;
+        if (task.status === "canceled") return <Tag>已终止</Tag>;
         return <Tag color="processing">处理中</Tag>;
     }, [task]);
 
@@ -116,6 +124,21 @@ export default function PSDWorkbenchPage() {
             message.error(error instanceof Error ? error.message : "创建任务失败");
         } finally {
             setSubmitting(false);
+        }
+    }
+
+    async function stopTask() {
+        if (!task || !running) return;
+        setCanceling(true);
+        try {
+            const next = await cancelPSDTask(task.id);
+            upsertTask(next);
+            setActiveTaskId(next.id);
+            message.success("PSD 任务已终止");
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "终止任务失败");
+        } finally {
+            setCanceling(false);
         }
     }
 
@@ -150,7 +173,7 @@ export default function PSDWorkbenchPage() {
         <main className="h-full overflow-y-auto bg-[#f3f6f7] px-5 py-6 text-stone-950 dark:bg-[#151515] dark:text-stone-100">
             <div className="mx-auto grid min-h-full max-w-[1500px] gap-5 xl:grid-cols-[300px_minmax(0,1fr)_360px]">
                 <aside className="min-h-0 border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-[#1d1d1b]">
-                    <TaskHistory tasks={tasks} activeTaskId={task?.id || ""} onSelect={selectHistoryTask} onRemove={removeTask} />
+                    <TaskHistory tasks={tasks} activeTaskId={task?.id || ""} onCreate={resetTask} onSelect={selectHistoryTask} onRemove={removeTask} />
                 </aside>
 
                 <section className="min-h-0">
@@ -173,6 +196,9 @@ export default function PSDWorkbenchPage() {
                                 </Button>
                                 <Button icon={<RotateCcw className="size-4" />} onClick={resetTask} disabled={running}>
                                     重置
+                                </Button>
+                                <Button danger icon={canceling ? <LoaderCircle className="size-4 animate-spin" /> : <CircleStop className="size-4" />} loading={canceling} disabled={!running} onClick={() => void stopTask()}>
+                                    终止任务
                                 </Button>
                                 <Button type="primary" icon={running ? <LoaderCircle className="size-4 animate-spin" /> : <Play className="size-4" />} loading={submitting} disabled={running} onClick={() => void startTask()}>
                                     开始任务
@@ -217,13 +243,13 @@ export default function PSDWorkbenchPage() {
                     </div>
 
                     <div className="border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-[#1d1d1b]">
-                        <PanelTitle title="产物" extra={task?.status === "success" ? "可下载" : running ? "处理中" : ""} />
+                        <PanelTitle title="产物" extra={task?.status === "success" ? "可下载" : task?.status === "canceled" ? "已终止" : running ? "处理中" : ""} />
                         <div className="mt-3 space-y-4">
                             <div className="flex min-h-[220px] items-center justify-center border border-stone-200 bg-[#f8fafc] p-4 dark:border-stone-800 dark:bg-[#181817]">
                                 {previewUrl ? (
                                     <Image src={previewUrl} alt="PSD 图层预览" className="max-h-[280px] object-contain" />
                                 ) : (
-                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={running ? "正在生成图层预览" : "任务完成后显示预览"} />
+                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={task?.status === "canceled" ? "任务已终止" : running ? "正在生成图层预览" : "任务完成后显示预览"} />
                                 )}
                             </div>
                             <div className="space-y-2">
@@ -270,7 +296,19 @@ function PanelTitle({ title, extra }: { title: string; extra?: string }) {
     );
 }
 
-function TaskHistory({ tasks, activeTaskId, onSelect, onRemove }: { tasks: Array<{ id: string; status: string; sourceName: string; startedAt: string }>; activeTaskId: string; onSelect: (id: string) => void; onRemove: (id: string) => void }) {
+function TaskHistory({
+    tasks,
+    activeTaskId,
+    onCreate,
+    onSelect,
+    onRemove,
+}: {
+    tasks: Array<{ id: string; status: string; sourceName: string; startedAt: string }>;
+    activeTaskId: string;
+    onCreate: () => void;
+    onSelect: (id: string) => void;
+    onRemove: (id: string) => void;
+}) {
     return (
         <div className="flex h-full min-h-0 flex-col">
             <div className="mb-3 flex items-center justify-between">
@@ -278,7 +316,12 @@ function TaskHistory({ tasks, activeTaskId, onSelect, onRemove }: { tasks: Array
                     <Clock3 className="size-4" />
                     历史记录
                 </div>
-                <span className="text-xs text-stone-500">{tasks.length} 条</span>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-stone-500">{tasks.length} 条</span>
+                    <Button size="small" type="text" icon={<Plus className="size-4" />} onClick={onCreate}>
+                        新增
+                    </Button>
+                </div>
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                 {tasks.length ? (
@@ -310,6 +353,7 @@ function TaskHistory({ tasks, activeTaskId, onSelect, onRemove }: { tasks: Array
 function TaskStatusText({ status }: { status: string }) {
     if (status === "success") return <span className="text-emerald-600">已完成</span>;
     if (status === "failed") return <span className="text-red-500">失败</span>;
+    if (status === "canceled") return <span className="text-stone-500">已终止</span>;
     return <span className="text-blue-500">处理中</span>;
 }
 

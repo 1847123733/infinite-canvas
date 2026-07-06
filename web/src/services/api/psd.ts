@@ -3,7 +3,7 @@ import axios from "axios";
 import { ensureRemoteAuthToken, withRemoteAuthRetry } from "@/services/api/ai-auth";
 import type { AiConfig } from "@/stores/use-config-store";
 
-export type PSDTaskStatus = "pending" | "running" | "success" | "failed";
+export type PSDTaskStatus = "pending" | "running" | "success" | "failed" | "canceled";
 
 export type PSDTaskFile = {
     name: "source" | "preview" | "psd" | "zip" | "manifest" | "config";
@@ -44,6 +44,14 @@ export async function fetchPSDTask(id: string) {
         const token = await ensureRemoteAuthToken(remoteConfig);
         const response = await axios.get<ApiEnvelope<PSDTask>>(`/api/v1/psd-tasks/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } });
         return unwrapEnvelope(response.data, "读取 PSD 任务失败");
+    });
+}
+
+export async function cancelPSDTask(id: string) {
+    return withRemoteAuthRetry(remoteConfig, async () => {
+        const token = await ensureRemoteAuthToken(remoteConfig);
+        const response = await axios.post<ApiEnvelope<PSDTask>>(`/api/v1/psd-tasks/${encodeURIComponent(id)}/cancel`, null, { headers: { Authorization: `Bearer ${token}` } });
+        return unwrapEnvelope(response.data, "终止 PSD 任务失败");
     });
 }
 

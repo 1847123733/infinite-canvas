@@ -37,6 +37,9 @@ func New() *gin.Engine {
 	v1.GET("/psd-tasks/:id", func(c *gin.Context) {
 		handler.PSDTask(c.Writer, c.Request, c.Param("id"))
 	})
+	v1.POST("/psd-tasks/:id/cancel", func(c *gin.Context) {
+		handler.CancelPSDTask(c.Writer, c.Request, c.Param("id"))
+	})
 	v1.GET("/psd-tasks/:id/files/:name", func(c *gin.Context) {
 		handler.PSDTaskFile(c.Writer, c.Request, c.Param("id"), c.Param("name"))
 	})

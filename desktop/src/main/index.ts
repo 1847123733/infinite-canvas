@@ -62,6 +62,7 @@ let apiProcess: any = null
 let webProcess: any = null
 let mainWindow: BrowserWindow | null = null
 let updateDownloadInProgress = false
+let serversStarted = false
 
 // Configuration
 let config = {
@@ -256,6 +257,144 @@ function getWindowIconPath() {
   return existsSync(devIconPath) ? devIconPath : undefined
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function getStartupHtml(message: string, isError = false) {
+  const safeMessage = escapeHtml(message)
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Infinite Canvas</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      background: #f7f4ef;
+      color: #27231d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 18% 16%, rgba(53, 121, 92, 0.14), transparent 28%),
+        linear-gradient(135deg, #fbfaf6 0%, #efe8dc 100%);
+    }
+    main {
+      width: min(460px, calc(100vw - 64px));
+      display: grid;
+      gap: 22px;
+      justify-items: center;
+      text-align: center;
+    }
+    .mark {
+      width: 62px;
+      height: 62px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(39, 35, 29, 0.14);
+      border-radius: 18px;
+      background: rgba(255, 252, 247, 0.72);
+      box-shadow: 0 18px 42px rgba(50, 42, 30, 0.12);
+    }
+    .spinner {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 3px solid rgba(55, 122, 92, 0.18);
+      border-top-color: ${isError ? '#b5473f' : '#35795c'};
+      animation: spin 0.9s linear infinite;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+    p {
+      margin: 8px 0 0;
+      color: #6e6253;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .bar {
+      width: 220px;
+      height: 3px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(39, 35, 29, 0.09);
+    }
+    .bar::after {
+      content: "";
+      display: block;
+      width: 42%;
+      height: 100%;
+      border-radius: inherit;
+      background: ${isError ? '#b5473f' : '#35795c'};
+      animation: slide 1.2s ease-in-out infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes slide {
+      0% { transform: translateX(-110%); }
+      55%, 100% { transform: translateX(250%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .spinner, .bar::after { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="mark"><div class="spinner"></div></div>
+    <section>
+      <h1>Infinite Canvas</h1>
+      <p>${safeMessage}</p>
+    </section>
+    <div class="bar"></div>
+  </main>
+</body>
+</html>`
+}
+
+function loadStartupPage(message: string, isError = false) {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const html = getStartupHtml(message, isError)
+  mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`).catch(error => {
+    console.error('Failed to load startup page:', error)
+  })
+}
+
+function loadAppPage() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.loadURL(`http://127.0.0.1:${config.webPort}/login`).catch(error => {
+    console.error('Failed to load app page:', error)
+  })
+}
+
+async function waitForHttpOk(url: string, timeoutMs: number) {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const res = await fetch(url)
+      if (res.ok) return
+    } catch {
+      // Keep polling until the service is ready or the timeout is reached.
+    }
+    await new Promise(resolve => setTimeout(resolve, 300))
+  }
+  throw new Error(`Health check timeout: ${url}`)
+}
+
 // Get user data directory
 function getUserDataPath() {
   return app.getPath('userData')
@@ -390,23 +529,7 @@ async function startApiServer() {
     throw error
   })
 
-  // Wait for API to start
-  await new Promise<void>((resolve, reject) => {
-    const checkHealth = () => {
-      fetch(`http://127.0.0.1:${config.apiPort}/api/health`)
-        .then(res => {
-          if (res.ok) resolve()
-          else setTimeout(checkHealth, 500)
-        })
-        .catch(() => setTimeout(checkHealth, 500))
-    }
-
-    // Wait a bit for server to start
-    setTimeout(checkHealth, 2000)
-
-    // Timeout after 30 seconds
-    setTimeout(() => reject(new Error('API health check timeout')), 30000)
-  })
+  await waitForHttpOk(`http://127.0.0.1:${config.apiPort}/api/health`, 30000)
 
   console.log(`API server started on port ${config.apiPort}`)
 
@@ -483,29 +606,14 @@ async function startWebServer() {
     throw error
   })
 
-  // Wait for Next.js to start
-  await new Promise<void>((resolve, reject) => {
-    const checkHealth = () => {
-      fetch(`http://127.0.0.1:${config.webPort}`)
-        .then(res => {
-          if (res.ok) resolve()
-          else setTimeout(checkHealth, 500)
-        })
-        .catch(() => setTimeout(checkHealth, 500))
-    }
-
-    // Wait a bit for server to start
-    setTimeout(checkHealth, 2000)
-
-    // Timeout after 60 seconds (Next.js can take longer to start)
-    setTimeout(() => reject(new Error('Web health check timeout')), 60000)
-  })
+  await waitForHttpOk(`http://127.0.0.1:${config.webPort}`, 60000)
 
   console.log(`Next.js server started on port ${config.webPort}`)
 }
 
 // Stop servers
 function stopServers() {
+  serversStarted = false
   if (apiProcess) {
     apiProcess.kill()
     apiProcess = null
@@ -536,8 +644,7 @@ function createWindow() {
     }
   })
 
-  // Load app
-  mainWindow.loadURL(`http://127.0.0.1:${config.webPort}/login`)
+  loadStartupPage('正在启动本地服务，请稍候')
 
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
@@ -585,15 +692,19 @@ app.whenReady().then(async () => {
     // TODO: Show setup wizard
   }
 
-  // Start servers
-  try {
-    await startApiServer()
-    await startWebServer()
+  createWindow()
 
-    // Create window
-    createWindow()
+  try {
+    loadStartupPage('正在启动本地 API 服务')
+    await startApiServer()
+    loadStartupPage('正在启动程序界面服务')
+    await startWebServer()
+    serversStarted = true
+    loadStartupPage('启动完成，正在打开登录页')
+    loadAppPage()
   } catch (error) {
     console.error('Failed to start application:', error)
+    loadStartupPage(`启动失败：${(error as Error).message}`, true)
     dialog.showErrorBox(
       '应用启动失败',
       `无法启动服务：${(error as Error).message}\n\n请确认 resources 目录下包含 api.exe 和 web 文件夹。`
@@ -619,6 +730,9 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
+    if (serversStarted) {
+      loadAppPage()
+    }
   }
 })
 
@@ -656,6 +770,7 @@ ipcMain.handle('restart-servers', async () => {
     stopServers()
     await startApiServer()
     await startWebServer()
+    serversStarted = true
     return { success: true, apiPort: config.apiPort, webPort: config.webPort }
   } catch (error) {
     return { success: false, error: (error as Error).message }

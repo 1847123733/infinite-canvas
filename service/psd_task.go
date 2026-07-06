@@ -3,6 +3,7 @@ package service
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -35,7 +36,7 @@ const (
 	psdSkillPath        = ".agents/skills/poster-layer-psd"
 	psdScriptPath       = "scripts/poster_layer_psd.py"
 	psdMaxUploadBytes   = 30 << 20
-	psdTaskHTTPTimeout  = 120 * time.Second
+	psdTaskHTTPTimeout  = 1200 * time.Second
 	psdPythonOutputTail = 4000
 	psdTaskMetaName     = "task.json"
 )
@@ -46,6 +47,7 @@ type psdTaskState struct {
 	taskDir    string
 	sourcePath string
 	basename   string
+	cancel     context.CancelFunc
 	task       model.PSDTask
 }
 
@@ -103,10 +105,12 @@ func CreatePSDTask(file multipart.File, header *multipart.FileHeader) (model.PSD
 		return model.PSDTask{}, err
 	}
 	nowText := now()
+	ctx, cancel := context.WithCancel(context.Background())
 	state := &psdTaskState{
 		taskDir:    taskDir,
 		sourcePath: sourcePath,
 		basename:   "psd_" + taskID,
+		cancel:     cancel,
 		task: model.PSDTask{
 			ID:         taskID,
 			Status:     model.PSDTaskStatusPending,
@@ -120,7 +124,7 @@ func CreatePSDTask(file multipart.File, header *multipart.FileHeader) (model.PSD
 	psdTasks.items[taskID] = state
 	psdTasks.mu.Unlock()
 	_ = persistPSDTaskState(state)
-	go runPSDTask(taskID)
+	go runPSDTask(ctx, taskID)
 	return clonePSDTask(state.task), nil
 }
 
@@ -158,28 +162,62 @@ func PSDTaskFilePath(id string, name string) (string, string, bool) {
 	return path, filepath.Base(path), true
 }
 
-func runPSDTask(id string) {
+func CancelPSDTask(id string) (model.PSDTask, bool) {
+	var task model.PSDTask
+	var ok bool
+	psdTasks.mu.Lock()
+	if state, exists := psdTasks.items[id]; exists {
+		ok = true
+		if isPSDTaskRunning(state.task.Status) {
+			if state.cancel != nil {
+				state.cancel()
+			}
+			state.task.Status = model.PSDTaskStatusCanceled
+			state.task.Error = "任务已终止"
+			state.task.FinishedAt = now()
+		}
+		task = clonePSDTask(state.task)
+	}
+	psdTasks.mu.Unlock()
+	if ok {
+		_ = persistPSDTaskByID(id)
+		return task, true
+	}
+	state, exists := recoverPSDTaskState(id)
+	if !exists {
+		return model.PSDTask{}, false
+	}
+	return clonePSDTask(state.task), true
+}
+
+func runPSDTask(ctx context.Context, id string) {
 	updatePSDTask(id, func(state *psdTaskState) {
-		state.task.Status = model.PSDTaskStatusRunning
+		if state.task.Status != model.PSDTaskStatusCanceled {
+			state.task.Status = model.PSDTaskStatusRunning
+		}
 	})
-	err := executePSDTask(id)
+	err := executePSDTask(ctx, id)
 	updatePSDTask(id, func(state *psdTaskState) {
-		if err != nil {
+		if state.task.Status == model.PSDTaskStatusCanceled || ctx.Err() != nil {
+			state.task.Status = model.PSDTaskStatusCanceled
+			state.task.Error = "任务已终止"
+		} else if err != nil {
 			state.task.Status = model.PSDTaskStatusFailed
 			state.task.Error = safeTaskError(err)
 		} else {
 			state.task.Status = model.PSDTaskStatusSuccess
 		}
+		state.cancel = nil
 		state.task.FinishedAt = now()
 	})
 }
 
-func executePSDTask(id string) error {
+func executePSDTask(ctx context.Context, id string) error {
 	state, ok := psdTaskSnapshot(id)
 	if !ok {
 		return errors.New("任务不存在")
 	}
-	layerConfig, err := generatePSDLayerConfig(state.sourcePath, state.basename, state.task.Model)
+	layerConfig, err := generatePSDLayerConfig(ctx, state.sourcePath, state.basename, state.task.Model)
 	if err != nil {
 		return err
 	}
@@ -195,7 +233,7 @@ func executePSDTask(id string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(pythonPath, scriptPath, "--source", state.sourcePath, "--config", configPath, "--out", state.taskDir, "--basename", state.basename)
+	cmd := exec.CommandContext(ctx, pythonPath, scriptPath, "--source", state.sourcePath, "--config", configPath, "--out", state.taskDir, "--basename", state.basename)
 	cmd.Env = append(os.Environ(), "PATH="+pythonPathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	var output bytes.Buffer
 	cmd.Stdout = &output
@@ -206,7 +244,7 @@ func executePSDTask(id string) error {
 	return validatePSDOutputs(state.taskDir, state.basename)
 }
 
-func generatePSDLayerConfig(sourcePath string, basename string, modelName string) ([]byte, error) {
+func generatePSDLayerConfig(ctx context.Context, sourcePath string, basename string, modelName string) ([]byte, error) {
 	channel, err := SelectModelChannel(modelName)
 	if err != nil {
 		return nil, err
@@ -233,7 +271,7 @@ func generatePSDLayerConfig(sourcePath string, basename string, modelName string
 		"reasoning_effort": "high",
 		"response_format":  map[string]string{"type": "json_object"},
 	})
-	request, err := http.NewRequest(http.MethodPost, BuildModelChannelURL(channel, "/chat/completions"), bytes.NewReader(payload))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, BuildModelChannelURL(channel, "/chat/completions"), bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
@@ -738,6 +776,14 @@ func updatePSDTask(id string, fn func(*psdTaskState)) {
 	}
 }
 
+func persistPSDTaskByID(id string) error {
+	state, ok := getPSDTaskState(id)
+	if !ok {
+		return nil
+	}
+	return persistPSDTaskState(&state)
+}
+
 func psdTaskSnapshot(id string) (psdTaskState, bool) {
 	return getPSDTaskState(id)
 }
@@ -796,7 +842,7 @@ func recoverPSDTaskState(id string) (psdTaskState, bool) {
 			task.Error = "任务未完成，应用重启后无法继续执行，请重新开始任务"
 		}
 	}
-	if task.FinishedAt == "" && (task.Status == model.PSDTaskStatusSuccess || task.Status == model.PSDTaskStatusFailed) {
+	if task.FinishedAt == "" && (task.Status == model.PSDTaskStatusSuccess || task.Status == model.PSDTaskStatusFailed || task.Status == model.PSDTaskStatusCanceled) {
 		task.FinishedAt = info.ModTime().Format(time.RFC3339)
 	}
 	task.Files = psdTaskFiles(id)
@@ -890,6 +936,10 @@ func psdTaskFiles(id string) []model.PSDTaskFile {
 func clonePSDTask(task model.PSDTask) model.PSDTask {
 	task.Files = append([]model.PSDTaskFile(nil), task.Files...)
 	return task
+}
+
+func isPSDTaskRunning(status model.PSDTaskStatus) bool {
+	return status == model.PSDTaskStatusPending || status == model.PSDTaskStatusRunning
 }
 
 func newTaskID() string {

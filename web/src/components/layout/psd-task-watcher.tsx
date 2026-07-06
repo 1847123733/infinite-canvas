@@ -44,6 +44,8 @@ export function PSDTaskWatcher() {
                             notifyGlobal({ type: "success", title: "PSD 任务已完成", description: next.sourceName });
                         } else if (runningStatuses.has(prevStatus) && next.status === "failed") {
                             notifyGlobal({ type: "error", title: "PSD 任务失败", description: next.error || next.sourceName });
+                        } else if (runningStatuses.has(prevStatus) && next.status === "canceled") {
+                            notifyGlobal({ type: "info", title: "PSD 任务已终止", description: next.sourceName });
                         }
                     } catch {
                         // 轮询失败通常是会话刷新或本地服务重启，下一轮继续尝试。

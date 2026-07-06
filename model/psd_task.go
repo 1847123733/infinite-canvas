@@ -3,10 +3,11 @@ package model
 type PSDTaskStatus string
 
 const (
-	PSDTaskStatusPending PSDTaskStatus = "pending"
-	PSDTaskStatusRunning PSDTaskStatus = "running"
-	PSDTaskStatusSuccess PSDTaskStatus = "success"
-	PSDTaskStatusFailed  PSDTaskStatus = "failed"
+	PSDTaskStatusPending  PSDTaskStatus = "pending"
+	PSDTaskStatusRunning  PSDTaskStatus = "running"
+	PSDTaskStatusSuccess  PSDTaskStatus = "success"
+	PSDTaskStatusFailed   PSDTaskStatus = "failed"
+	PSDTaskStatusCanceled PSDTaskStatus = "canceled"
 )
 
 type PSDTaskFile struct {

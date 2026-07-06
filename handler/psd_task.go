@@ -35,6 +35,15 @@ func PSDTask(w http.ResponseWriter, r *http.Request, id string) {
 	OK(w, task)
 }
 
+func CancelPSDTask(w http.ResponseWriter, r *http.Request, id string) {
+	task, ok := service.CancelPSDTask(strings.TrimSpace(id))
+	if !ok {
+		Fail(w, "任务不存在")
+		return
+	}
+	OK(w, task)
+}
+
 func PSDTaskFile(w http.ResponseWriter, r *http.Request, id string, name string) {
 	path, fileName, ok := service.PSDTaskFilePath(strings.TrimSpace(id), strings.TrimSpace(name))
 	if !ok {

@@ -1,15 +1,18 @@
 "use client";
 
-import { Copy, Download, PencilLine, Search, Trash2, Upload } from "lucide-react";
+import { Copy, Download, Layers3, PencilLine, Search, Trash2, Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Card, Drawer, Empty, Form, Image, Input, Modal, Pagination, Select, Space, Tag, Typography } from "antd";
 import { saveAs } from "file-saver";
 
 import { useCopyText } from "@/hooks/use-copy-text";
 import { formatBytes, readFileAsDataUrl } from "@/lib/image-utils";
-import { uploadImage } from "@/services/image-storage";
+import { getImageBlob, resolveImageUrl, uploadImage } from "@/services/image-storage";
+import { createPSDTask } from "@/services/api/psd";
 import { cn } from "@/lib/utils";
 import { useAssetStore, type Asset, type AssetKind, type ImageAsset } from "@/stores/use-asset-store";
+import { usePSDTaskStore } from "@/stores/use-psd-task-store";
 import { exportAssets, readAssetPackage } from "./asset-transfer";
 
 type AssetFormValues = {
@@ -33,6 +36,7 @@ const kindOptions = [
 
 export default function AssetsPage() {
     const { message } = App.useApp();
+    const router = useRouter();
     const copyText = useCopyText();
     const [form] = Form.useForm<AssetFormValues>();
     const coverInputRef = useRef<HTMLInputElement>(null);
@@ -42,6 +46,8 @@ export default function AssetsPage() {
     const addAsset = useAssetStore((state) => state.addAsset);
     const updateAsset = useAssetStore((state) => state.updateAsset);
     const removeAsset = useAssetStore((state) => state.removeAsset);
+    const upsertPSDTask = usePSDTaskStore((state) => state.upsertTask);
+    const setActivePSDTaskId = usePSDTaskStore((state) => state.setActiveTaskId);
     const [keyword, setKeyword] = useState("");
     const [kindFilter, setKindFilter] = useState<AssetKind | "all">("all");
     const [page, setPage] = useState(1);
@@ -52,6 +58,7 @@ export default function AssetsPage() {
     const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
     const [formKind, setFormKind] = useState<AssetKind>("text");
     const [imageDraft, setImageDraft] = useState<ImageDraft>(null);
+    const [generatingPSDAssetId, setGeneratingPSDAssetId] = useState("");
     const coverUrl = Form.useWatch("coverUrl", form) || "";
     const title = Form.useWatch("title", form) || "";
     const tags = Form.useWatch("tags", form) || [];
@@ -151,6 +158,23 @@ export default function AssetsPage() {
     const downloadImage = (asset: Asset) => {
         if (asset.kind !== "image" && asset.kind !== "video") return;
         saveAs(asset.kind === "video" ? asset.data.url : asset.data.dataUrl, `${asset.title || "asset"}.${asset.data.mimeType.split("/")[1] || "png"}`);
+    };
+
+    const generatePSD = async (asset: Asset) => {
+        if (generatingPSDAssetId) return;
+        if (asset.kind !== "image") return;
+        setGeneratingPSDAssetId(asset.id);
+        try {
+            const task = await createPSDTask(await imageAssetToFile(asset));
+            upsertPSDTask(task);
+            setActivePSDTaskId(task.id);
+            message.success("PSD 任务已开始");
+            router.push("/psd");
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "创建 PSD 任务失败");
+        } finally {
+            setGeneratingPSDAssetId("");
+        }
     };
 
     const exportAllAssets = async () => {
@@ -265,7 +289,17 @@ export default function AssetsPage() {
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {visibleAssets.map((asset) => (
-                            <AssetCard key={asset.id} asset={asset} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadImage} onDelete={() => setDeletingAsset(asset)} />
+                            <AssetCard
+                                key={asset.id}
+                                asset={asset}
+                                generatingPSD={generatingPSDAssetId === asset.id}
+                                onOpen={() => setPreviewAsset(asset)}
+                                onEdit={() => openEdit(asset)}
+                                onCopy={copyAssetText}
+                                onDownload={downloadImage}
+                                onGeneratePSD={generatePSD}
+                                onDelete={() => setDeletingAsset(asset)}
+                            />
                         ))}
                     </div>
 
@@ -393,7 +427,7 @@ export default function AssetsPage() {
                 />
             </Modal>
 
-            <AssetDrawer asset={previewAsset} onClose={() => setPreviewAsset(null)} onCopy={copyAssetText} onDownload={downloadImage} />
+            <AssetDrawer asset={previewAsset} generatingPSD={Boolean(previewAsset && generatingPSDAssetId === previewAsset.id)} onClose={() => setPreviewAsset(null)} onCopy={copyAssetText} onDownload={downloadImage} onGeneratePSD={generatePSD} />
 
             <input ref={assetInputRef} type="file" accept="application/zip,.zip" className="hidden" onChange={(event) => void importAssetZip(event.target.files?.[0])} />
 
@@ -404,7 +438,25 @@ export default function AssetsPage() {
     );
 }
 
-function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { asset: Asset; onOpen: () => void; onEdit: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void; onDelete: () => void }) {
+function AssetCard({
+    asset,
+    generatingPSD,
+    onOpen,
+    onEdit,
+    onCopy,
+    onDownload,
+    onGeneratePSD,
+    onDelete,
+}: {
+    asset: Asset;
+    generatingPSD: boolean;
+    onOpen: () => void;
+    onEdit: () => void;
+    onCopy: (asset: Asset) => void;
+    onDownload: (asset: Asset) => void;
+    onGeneratePSD: (asset: Asset) => void;
+    onDelete: () => void;
+}) {
     const cover = asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "");
     const summary = assetSummary(asset);
     return (
@@ -446,7 +498,7 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
                     </div>
                 </div>
             </button>
-            <div className="flex items-center gap-2 px-4 pb-4">
+            <div className="flex flex-wrap items-center gap-2 px-4 pb-4">
                 <Button size="small" onClick={onOpen}>
                     查看
                 </Button>
@@ -465,6 +517,11 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
                         下载
                     </Button>
                 ) : null}
+                {asset.kind === "image" ? (
+                    <Button size="small" loading={generatingPSD} icon={<Layers3 className="size-3.5" />} onClick={() => void onGeneratePSD(asset)}>
+                        生成PSD
+                    </Button>
+                ) : null}
                 <Button size="small" danger icon={<Trash2 className="size-3.5" />} onClick={onDelete}>
                     删除
                 </Button>
@@ -473,7 +530,21 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
     );
 }
 
-function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | null; onClose: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void }) {
+function AssetDrawer({
+    asset,
+    generatingPSD,
+    onClose,
+    onCopy,
+    onDownload,
+    onGeneratePSD,
+}: {
+    asset: Asset | null;
+    generatingPSD: boolean;
+    onClose: () => void;
+    onCopy: (asset: Asset) => void;
+    onDownload: (asset: Asset) => void;
+    onGeneratePSD: (asset: Asset) => void;
+}) {
     const cover = asset ? asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "") : "";
     return (
         <Drawer title="素材详情" open={Boolean(asset)} size="large" onClose={onClose}>
@@ -526,6 +597,11 @@ function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | nu
                                 {asset.kind === "video" ? "下载视频" : "下载图片"}
                             </Button>
                         ) : null}
+                        {asset.kind === "image" ? (
+                            <Button icon={<Layers3 className="size-4" />} loading={generatingPSD} onClick={() => void onGeneratePSD(asset)}>
+                                生成PSD
+                            </Button>
+                        ) : null}
                     </Space>
                 </div>
             ) : null}
@@ -540,4 +616,26 @@ function assetSummary(asset: Asset) {
 
 function assetSearchText(asset: Asset) {
     return [asset.title, asset.source || "", asset.note || "", (asset.tags || []).join(" "), asset.kind === "text" ? asset.data.content : asset.data.mimeType].join(" ").toLowerCase();
+}
+
+async function imageAssetToFile(asset: ImageAsset) {
+    let blob = asset.data.storageKey ? await getImageBlob(asset.data.storageKey) : null;
+    if (!blob) {
+        const url = await resolveImageUrl(asset.data.storageKey, asset.data.dataUrl);
+        if (!url) throw new Error("图片文件不存在");
+        blob = await (await fetch(url)).blob();
+    }
+    const mimeType = blob.type || asset.data.mimeType || "image/png";
+    return new File([blob], `${safeFileName(asset.title || "asset")}.${imageFileExtension(mimeType)}`, { type: mimeType });
+}
+
+function safeFileName(value: string) {
+    return value.trim().replace(/[\\/:*?"<>|]/g, "_") || "asset";
+}
+
+function imageFileExtension(mimeType: string) {
+    if (mimeType.includes("jpeg")) return "jpg";
+    if (mimeType.includes("webp")) return "webp";
+    if (mimeType.includes("gif")) return "gif";
+    return "png";
 }
