@@ -33,6 +33,13 @@ func New() *gin.Engine {
 	v1.POST("/videos", gin.WrapF(handler.AIVideos))
 	v1.POST("/media/references", gin.WrapF(handler.UploadReferenceMedia))
 	v1.POST("/settings/model-channel/sync", gin.WrapF(handler.SyncDesktopCloudModelChannel))
+	v1.POST("/psd-tasks", gin.WrapF(handler.CreatePSDTask))
+	v1.GET("/psd-tasks/:id", func(c *gin.Context) {
+		handler.PSDTask(c.Writer, c.Request, c.Param("id"))
+	})
+	v1.GET("/psd-tasks/:id/files/:name", func(c *gin.Context) {
+		handler.PSDTaskFile(c.Writer, c.Request, c.Param("id"), c.Param("name"))
+	})
 	v1.GET("/videos/:id", func(c *gin.Context) {
 		handler.AIVideo(c.Writer, c.Request, c.Param("id"))
 	})

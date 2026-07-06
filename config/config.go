@@ -20,6 +20,8 @@ type Config struct {
 	DatabaseDSN            string `env:"DATABASE_DSN" envDefault:"data/infinite-canvas.db"`
 	InfiniteCanvasCloudURL string `env:"INFINITE_CANVAS_CLOUD_BASE_URL"`
 	PublicBaseURL          string `env:"PUBLIC_BASE_URL"`
+	AppDataDir             string `env:"INFINITE_CANVAS_APP_DATA_DIR"`
+	ResourceDir            string `env:"INFINITE_CANVAS_RESOURCE_DIR"`
 }
 
 var Cfg Config

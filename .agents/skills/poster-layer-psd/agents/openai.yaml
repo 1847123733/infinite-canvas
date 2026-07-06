@@ -1,0 +1,6 @@
+interface:
+  display_name: "Poster Layer PSD"
+  short_description: "Split flat posters into editable PSD layer assets"
+  default_prompt: "Use $poster-layer-psd to split this poster screenshot into positioned editable PSD layers and a ZIP of layer assets."
+policy:
+  allow_implicit_invocation: true

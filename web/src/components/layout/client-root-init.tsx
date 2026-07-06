@@ -5,6 +5,8 @@ import { useEffect } from "react";
 
 import { useConfigStore } from "@/stores/use-config-store";
 import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
+import { GlobalNotificationBridge } from "@/components/layout/global-notification-bridge";
+import { PSDTaskWatcher } from "@/components/layout/psd-task-watcher";
 
 export function ClientRootInit({ children }: { children: ReactNode }) {
     const restoreCloudSession = useCloudAuthStore((state) => state.restoreSession);
@@ -36,5 +38,11 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         };
     }, [accessToken, validateCloudSession]);
 
-    return <>{children}</>;
+    return (
+        <>
+            <GlobalNotificationBridge />
+            <PSDTaskWatcher />
+            {children}
+        </>
+    );
 }

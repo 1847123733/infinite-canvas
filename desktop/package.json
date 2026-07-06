@@ -54,6 +54,14 @@
       {
         "from": "resources/env.ini",
         "to": "resources/env.ini"
+      },
+      {
+        "from": "../python-bin",
+        "to": "python-bin"
+      },
+      {
+        "from": "../.agents/skills/poster-layer-psd",
+        "to": ".agents/skills/poster-layer-psd"
       }
     ],
     "win": {

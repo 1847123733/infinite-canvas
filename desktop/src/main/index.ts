@@ -321,12 +321,13 @@ async function findAvailablePort(basePort: number): Promise<number> {
 // Start API server
 async function startApiServer() {
   const userDataPath = getUserDataPath()
+  const isDev = process.env.NODE_ENV === 'development'
+  const resourceRoot = isDev ? join(process.cwd(), '..') : process.resourcesPath
 
   // Find available port
   config.apiPort = await findAvailablePort(config.apiPort)
 
   // Get platform-specific binary path
-  const isDev = process.env.NODE_ENV === 'development'
   let apiPath: string
 
   if (isDev) {
@@ -365,6 +366,8 @@ async function startApiServer() {
     ADMIN_USERNAME: store.get('config.adminUsername') || 'admin',
     ADMIN_PASSWORD: store.get('config.adminPassword') || '',
     INFINITE_CANVAS_CLOUD_BASE_URL: config.cloudBaseUrl,
+    INFINITE_CANVAS_APP_DATA_DIR: userDataPath,
+    INFINITE_CANVAS_RESOURCE_DIR: resourceRoot,
     LOG_PATH: join(userDataPath, 'logs', 'api.log')
   }
 
