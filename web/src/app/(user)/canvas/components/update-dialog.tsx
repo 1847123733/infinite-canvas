@@ -148,7 +148,7 @@ export function UpdateDialog({
               <span className="text-sm font-medium">{updateInfo.title}</span>
             </div>
             {updateInfo.releaseNotes && (
-              <div className="max-h-40 overflow-auto rounded-lg p-3 text-xs leading-relaxed opacity-70" style={{ background: theme.toolbar.itemHover }}>
+              <div className="max-h-40 overflow-auto whitespace-pre-line rounded-lg p-3 text-xs leading-relaxed opacity-70" style={{ background: theme.toolbar.itemHover }}>
                 {updateInfo.releaseNotes}
               </div>
             )}
