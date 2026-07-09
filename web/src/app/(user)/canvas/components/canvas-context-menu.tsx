@@ -2,13 +2,27 @@
 
 import { useEffect } from "react";
 import type { ReactNode } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Images, Plus, Trash2 } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { ContextMenuState } from "../types";
 
-export function CanvasNodeContextMenu({ menu, onClose, onDuplicate, onDelete }: { menu: ContextMenuState; onClose: () => void; onDuplicate: () => void; onDelete: () => void }) {
+export function CanvasNodeContextMenu({
+    menu,
+    canPreviewBatch = false,
+    onClose,
+    onDuplicate,
+    onPreviewBatch,
+    onDelete,
+}: {
+    menu: ContextMenuState;
+    canPreviewBatch?: boolean;
+    onClose: () => void;
+    onDuplicate: () => void;
+    onPreviewBatch?: () => void;
+    onDelete: () => void;
+}) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
 
     useEffect(() => {
@@ -28,6 +42,7 @@ export function CanvasNodeContextMenu({ menu, onClose, onDuplicate, onDelete }: 
             onPointerDown={(event) => event.stopPropagation()}
         >
             {menu.type === "node" ? <MenuButton icon={<Plus className="size-4" />} label="Duplicate" onClick={onDuplicate} /> : null}
+            {menu.type === "node" && canPreviewBatch ? <MenuButton icon={<Images className="size-4" />} label="批量查看大图" onClick={onPreviewBatch} /> : null}
             <MenuButton icon={<Trash2 className="size-4" />} label="Delete" onClick={onDelete} danger />
         </div>
     );

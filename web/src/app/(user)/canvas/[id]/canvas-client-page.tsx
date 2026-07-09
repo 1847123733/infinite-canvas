@@ -27,6 +27,7 @@ import { ActiveConnectionPath, ConnectionPath } from "../components/canvas-conne
 import { CanvasConfigComposer } from "../components/canvas-config-composer";
 import { CanvasConfigNodePanel } from "../components/canvas-config-node-panel";
 import { CanvasAssistantPanel } from "../components/canvas-assistant-panel";
+import { CanvasBatchPreviewModal } from "../components/canvas-batch-preview-modal";
 import { CanvasNodeContextMenu } from "../components/canvas-context-menu";
 import { CanvasNodeAngleDialog, type CanvasImageAngleParams } from "../components/canvas-node-angle-dialog";
 import { CanvasNodeCropDialog, type CanvasImageCropRect } from "../components/canvas-node-crop-dialog";
@@ -287,6 +288,7 @@ function InfiniteCanvasPage() {
     const [superResolveNodeId, setSuperResolveNodeId] = useState<string | null>(null);
     const [angleNodeId, setAngleNodeId] = useState<string | null>(null);
     const [previewNodeId, setPreviewNodeId] = useState<string | null>(null);
+    const [batchPreview, setBatchPreview] = useState<{ rootId: string; index: number } | null>(null);
     const [assistantCollapsed, setAssistantCollapsed] = useState(true);
     const [assistantMounted, setAssistantMounted] = useState(false);
     const [titleEditing, setTitleEditing] = useState(false);
@@ -592,6 +594,14 @@ function InfiniteCanvasPage() {
     const superResolveNode = superResolveNodeId ? nodeById.get(superResolveNodeId) || null : null;
     const angleNode = angleNodeId ? nodeById.get(angleNodeId) || null : null;
     const previewNode = previewNodeId ? nodeById.get(previewNodeId) || null : null;
+    const batchPreviewRoot = batchPreview ? nodeById.get(batchPreview.rootId) || null : null;
+    const batchPreviewNodes = useMemo(() => getBatchPreviewNodes(batchPreviewRoot, nodeById), [batchPreviewRoot, nodeById]);
+    const batchPreviewIndex = batchPreviewNodes.length ? Math.min(batchPreview?.index || 0, batchPreviewNodes.length - 1) : 0;
+    const contextBatchPreviewRoot = useMemo(() => {
+        if (contextMenu?.type !== "node") return null;
+        return getBatchPreviewRoot(nodeById.get(contextMenu.nodeId), nodeById);
+    }, [contextMenu, nodeById]);
+    const contextBatchPreviewNodes = useMemo(() => getBatchPreviewNodes(contextBatchPreviewRoot, nodeById), [contextBatchPreviewRoot, nodeById]);
     const hasMultipleSelectedNodes = selectedNodeIds.size > 1;
     const activeNodeId = hasMultipleSelectedNodes ? null : hoveredNodeId || (selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null);
     const batchChildCountById = useMemo(() => {
@@ -707,6 +717,7 @@ function InfiniteCanvasPage() {
             setMaskEditNodeId((current) => (current && allIds.has(current) ? null : current));
             setAngleNodeId((current) => (current && allIds.has(current) ? null : current));
             setPreviewNodeId((current) => (current && allIds.has(current) ? null : current));
+            setBatchPreview((current) => (current && allIds.has(current.rootId) ? null : current));
             setRunningNodeId((current) => (current && allIds.has(current) ? null : current));
             setContextMenu((current) => (current?.type === "node" && allIds.has(current.nodeId) ? null : current));
             cleanupCanvasFiles({ projectId, nodes: nodesRef.current.filter((node) => !allIds.has(node.id)), chatSessions });
@@ -740,6 +751,7 @@ function InfiniteCanvasPage() {
         setMaskEditNodeId(null);
         setAngleNodeId(null);
         setPreviewNodeId(null);
+        setBatchPreview(null);
         setRunningNodeId(null);
         deselectCanvas();
         setClearConfirmOpen(false);
@@ -1132,25 +1144,42 @@ function InfiniteCanvasPage() {
         };
     }, [finishNodeDrag, handleGlobalMouseMove, handleGlobalMouseUp, handleGlobalPointerMove]);
 
-    const createImageFileNode = useCallback(async (file: File, position: Position) => {
-        const image = await uploadImage(file);
-        const size = fitNodeSize(image.width, image.height);
-        const id = `image-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const newNode: CanvasNodeData = {
-            id,
-            type: CanvasNodeType.Image,
-            title: file.name,
-            position: { x: position.x - size.width / 2, y: position.y - size.height / 2 },
-            width: size.width,
-            height: size.height,
-            metadata: imageMetadata(image),
-        };
+    const createImageFileNodes = useCallback(async (files: File[], position: Position) => {
+        if (!files.length) return;
+        const importedAt = Date.now();
+        const items = await Promise.all(
+            files.map(async (file) => {
+                const image = await uploadImage(file);
+                const size = fitNodeSize(image.width, image.height);
+                return { file, image, size };
+            }),
+        );
+        const positions = layoutImportedNodes(
+            items.map((item) => item.size),
+            position,
+        );
+        const newNodes: CanvasNodeData[] = items.map((item, index) => {
+            const id = `image-${importedAt}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+            return {
+                id,
+                type: CanvasNodeType.Image,
+                title: item.file.name,
+                position: positions[index],
+                width: item.size.width,
+                height: item.size.height,
+                metadata: imageMetadata(item.image),
+            };
+        });
 
-        setNodes((prev) => [...prev, newNode]);
-        setSelectedNodeIds(new Set([id]));
+        setNodes((prev) => [...prev, ...newNodes]);
+        setSelectedNodeIds(new Set(newNodes.map((node) => node.id)));
         setSelectedConnectionId(null);
-        setDialogNodeId(id);
+        setDialogNodeId(newNodes.length === 1 ? newNodes[0].id : null);
     }, []);
+
+    const createImageFileNode = useCallback(async (file: File, position: Position) => {
+        await createImageFileNodes([file], position);
+    }, [createImageFileNodes]);
 
     const createVideoFileNode = useCallback(async (file: File, position: Position) => {
         const video = await uploadMediaFile(file, "video");
@@ -1691,9 +1720,15 @@ function InfiniteCanvasPage() {
 
     const handleImageInputChange = useCallback(
         async (event: ReactChangeEvent<HTMLInputElement>) => {
-            const file = event.target.files?.[0];
             const target = uploadTargetRef.current;
-            if (!file || (!file.type.startsWith("image/") && !file.type.startsWith("video/") && !isAudioFile(file))) return;
+            const files = Array.from(event.target.files || []).filter(isCanvasMediaFile);
+            const imageFiles = files.filter((item) => item.type.startsWith("image/"));
+            const file = files[0];
+            if (!file) {
+                uploadTargetRef.current = null;
+                event.target.value = "";
+                return;
+            }
 
             if (target?.nodeId) {
                 if (isAudioFile(file)) {
@@ -1755,25 +1790,35 @@ function InfiniteCanvasPage() {
                 setDialogNodeId(target.nodeId);
             } else {
                 const position = target?.position || screenToCanvas((containerRef.current?.getBoundingClientRect().left || 0) + size.width / 2, (containerRef.current?.getBoundingClientRect().top || 0) + size.height / 2);
-                void (isAudioFile(file) ? createAudioFileNode(file, position) : file.type.startsWith("video/") ? createVideoFileNode(file, position) : createImageFileNode(file, position));
+                if (imageFiles.length > 1) {
+                    void createImageFileNodes(imageFiles, position);
+                } else {
+                    void (isAudioFile(file) ? createAudioFileNode(file, position) : file.type.startsWith("video/") ? createVideoFileNode(file, position) : createImageFileNode(file, position));
+                }
             }
 
             uploadTargetRef.current = null;
             event.target.value = "";
         },
-        [createAudioFileNode, createImageFileNode, createVideoFileNode, screenToCanvas, size.height, size.width],
+        [createAudioFileNode, createImageFileNode, createImageFileNodes, createVideoFileNode, screenToCanvas, size.height, size.width],
     );
 
     const handleDrop = useCallback(
         (event: ReactDragEvent<HTMLDivElement>) => {
             event.preventDefault();
-            const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith("image/") || item.type.startsWith("video/") || isAudioFile(item));
+            const files = Array.from(event.dataTransfer.files).filter(isCanvasMediaFile);
+            const imageFiles = files.filter((item) => item.type.startsWith("image/"));
+            const file = files[0];
             if (!file) return;
 
             const pos = screenToCanvas(event.clientX, event.clientY);
+            if (imageFiles.length > 1) {
+                void createImageFileNodes(imageFiles, pos);
+                return;
+            }
             void (isAudioFile(file) ? createAudioFileNode(file, pos) : file.type.startsWith("video/") ? createVideoFileNode(file, pos) : createImageFileNode(file, pos));
         },
-        [createAudioFileNode, createImageFileNode, createVideoFileNode, screenToCanvas],
+        [createAudioFileNode, createImageFileNode, createImageFileNodes, createVideoFileNode, screenToCanvas],
     );
 
     const pasteAssistantImage = useCallback(
@@ -2528,6 +2573,12 @@ function InfiniteCanvasPage() {
                             duplicateNode(contextMenu.nodeId);
                             setContextMenu(null);
                         }}
+                        canPreviewBatch={contextBatchPreviewNodes.length > 1}
+                        onPreviewBatch={() => {
+                            if (!contextBatchPreviewRoot) return;
+                            setBatchPreview({ rootId: contextBatchPreviewRoot.id, index: 0 });
+                            setContextMenu(null);
+                        }}
                         onDelete={() => {
                             if (contextMenu.type === "node") {
                                 deleteNodes(new Set([contextMenu.nodeId]));
@@ -2539,7 +2590,7 @@ function InfiniteCanvasPage() {
                     />
                 ) : null}
 
-                <input ref={imageInputRef} type="file" accept="image/*,video/*,audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav" className="hidden" onChange={handleImageInputChange} />
+                <input ref={imageInputRef} type="file" accept="image/*,video/*,audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav" className="hidden" multiple onChange={handleImageInputChange} />
 
                 <CanvasNodeInfoModal node={infoNode} open={Boolean(infoNode)} onClose={() => setInfoNodeId(null)} />
 
@@ -2574,6 +2625,14 @@ function InfiniteCanvasPage() {
                         />
                     ) : null}
                 </Modal>
+
+                <CanvasBatchPreviewModal
+                    nodes={batchPreviewNodes}
+                    index={batchPreviewIndex}
+                    open={Boolean(batchPreview)}
+                    onIndexChange={(index) => setBatchPreview((current) => (current ? { ...current, index } : current))}
+                    onClose={() => setBatchPreview(null)}
+                />
 
                 <Modal
                     title="清空画布？"
@@ -3022,6 +3081,46 @@ function sourceNodeReferenceImages(node: CanvasNodeData | null) {
             storageKey: node.metadata.storageKey,
         },
     ];
+}
+
+function getBatchPreviewRoot(node: CanvasNodeData | null | undefined, nodeById: Map<string, CanvasNodeData>) {
+    if (!node || node.type !== CanvasNodeType.Image) return null;
+    if (node.metadata?.isBatchRoot && (node.metadata.batchChildIds?.length || 0) > 1) return node;
+    const rootId = node.metadata?.batchRootId;
+    const root = rootId ? nodeById.get(rootId) : null;
+    return root?.type === CanvasNodeType.Image && root.metadata?.isBatchRoot && (root.metadata.batchChildIds?.length || 0) > 1 ? root : null;
+}
+
+function getBatchPreviewNodes(root: CanvasNodeData | null, nodeById: Map<string, CanvasNodeData>) {
+    const childIds = root?.metadata?.batchChildIds || [];
+    const children = childIds.map((id) => nodeById.get(id)).filter((node): node is CanvasNodeData => Boolean(node?.type === CanvasNodeType.Image && node.metadata?.batchRootId === root?.id && node.metadata?.content));
+    if (children.length) return children;
+    return root?.metadata?.content ? [root] : [];
+}
+
+function layoutImportedNodes(items: Array<{ width: number; height: number }>, center: Position) {
+    if (!items.length) return [];
+    const gap = 36;
+    const columns = Math.min(4, Math.ceil(Math.sqrt(items.length)));
+    const rows = Math.ceil(items.length / columns);
+    const cellWidth = Math.max(...items.map((item) => item.width));
+    const cellHeight = Math.max(...items.map((item) => item.height));
+    const totalWidth = columns * cellWidth + (columns - 1) * gap;
+    const totalHeight = rows * cellHeight + (rows - 1) * gap;
+    const startX = center.x - totalWidth / 2;
+    const startY = center.y - totalHeight / 2;
+    return items.map((item, index) => {
+        const column = index % columns;
+        const row = Math.floor(index / columns);
+        return {
+            x: startX + column * (cellWidth + gap) + (cellWidth - item.width) / 2,
+            y: startY + row * (cellHeight + gap) + (cellHeight - item.height) / 2,
+        };
+    });
+}
+
+function isCanvasMediaFile(file: File) {
+    return file.type.startsWith("image/") || file.type.startsWith("video/") || isAudioFile(file);
 }
 
 function isAudioFile(file: File) {
