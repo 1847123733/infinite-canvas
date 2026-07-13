@@ -55,11 +55,20 @@ function cloudUrl(baseUrl: string, path: string) {
 async function cloudRequest<T>(baseUrl: string, path: string, options: { body?: unknown; token?: string } = {}) {
     let response;
     try {
+        const clientHeaders =
+            typeof window !== "undefined" && window.desktopApp
+                ? {
+                      "X-Device-Id": await window.desktopApp.getDeviceId(),
+                      "X-Device-Name": navigator.userAgent,
+                      "X-Client-Version": await window.desktopApp.getVersion(),
+                  }
+                : {};
         response = await axios.request<CloudApiResponse<T>>({
             url: cloudUrl(baseUrl, path),
             method: options.body ? "POST" : "GET",
             data: options.body,
             headers: {
+                ...clientHeaders,
                 ...(options.body ? { "Content-Type": "application/json" } : {}),
                 ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
             },
