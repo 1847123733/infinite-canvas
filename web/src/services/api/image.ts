@@ -16,6 +16,54 @@ export type ChatCompletionMessage = {
     content: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
 };
 
+export type ResponseToolCall = {
+    id: string;
+    type: "function";
+    function: { name: string; arguments: string };
+    thoughtSignature?: string;
+};
+
+export type ResponseInputMessage =
+    | ChatCompletionMessage
+    | { type: "function_call"; call_id: string; name: string; arguments: string; thoughtSignature?: string }
+    | { role: "tool"; tool_call_id: string; content: string };
+
+export type ResponseFunctionTool = {
+    type: "function";
+    function: {
+        name: string;
+        description?: string;
+        parameters: Record<string, unknown>;
+        strict?: boolean;
+    };
+};
+
+type ToolChoice = "auto" | "required" | { type: "function"; name: string };
+type ToolResponseResult = { content: string; toolCalls: ResponseToolCall[] };
+type ResponseApiInputContent = { type: "input_text"; text: string } | { type: "input_image"; image_url: string };
+type ResponseApiInput =
+    | { role: "system" | "user" | "assistant"; content: string | ResponseApiInputContent[] }
+    | { type: "function_call"; call_id: string; name: string; arguments: string }
+    | { type: "function_call_output"; call_id: string; output: string };
+type ResponseApiOutput =
+    | { type?: "message"; content?: Array<{ type?: string; text?: string }> }
+    | { type?: "function_call"; id?: string; call_id?: string; name?: string; arguments?: string };
+type ResponseApiPayload = {
+    code?: number;
+    msg?: string;
+    output_text?: string;
+    output?: ResponseApiOutput[];
+    error?: { message?: string };
+};
+type ResponseStreamState = {
+    buffer: string;
+    text: string;
+    payload?: ResponseApiPayload;
+    error?: string;
+    toolCalls: Map<string, ResponseToolCall>;
+    toolItemIds: Map<string, string>;
+};
+
 type ImageApiResponse = {
     data?: Array<Record<string, unknown>>;
     error?: { message?: string };
@@ -426,6 +474,200 @@ export async function requestImageQuestion(config: AiConfig, messages: ChatCompl
     }
     refreshRemoteUser(config);
     return answer || "没有返回内容";
+}
+
+export async function requestToolResponse(
+    config: AiConfig,
+    messages: ResponseInputMessage[],
+    tools: ResponseFunctionTool[],
+    toolChoice: ToolChoice = "auto",
+    onDelta?: (text: string) => void,
+    signal?: AbortSignal,
+): Promise<ToolResponseResult> {
+    try {
+        const result = await withRemoteAuthRetry(config, () =>
+            requestStreamingToolResponse(
+                config,
+                {
+                    model: config.model,
+                    input: toResponseApiInput(config, messages),
+                    tools: tools.map((tool) => ({
+                        type: "function",
+                        name: tool.function.name,
+                        description: tool.function.description,
+                        parameters: tool.function.parameters,
+                        strict: tool.function.strict,
+                    })),
+                    tool_choice: toolChoice,
+                    parallel_tool_calls: false,
+                },
+                onDelta,
+                signal,
+            ),
+        );
+        refreshRemoteUser(config);
+        return result;
+    } catch (error) {
+        throw new Error(readAxiosError(error, "Agent 请求失败"));
+    }
+}
+
+function toResponseApiInput(config: AiConfig, messages: ResponseInputMessage[]): ResponseApiInput[] {
+    const input = messages.map((message): ResponseApiInput => {
+        if ("type" in message) return { type: "function_call", call_id: message.call_id, name: message.name, arguments: message.arguments };
+        if (message.role === "tool") return { type: "function_call_output", call_id: message.tool_call_id, output: message.content };
+        return { role: message.role, content: Array.isArray(message.content) ? message.content.map((item) => (item.type === "text" ? { type: "input_text", text: item.text } : { type: "input_image", image_url: item.image_url.url })) : message.content };
+    });
+    return config.systemPrompt.trim() ? [{ role: "system", content: config.systemPrompt }, ...input] : input;
+}
+
+function parseResponseApiPayload(payload: ResponseApiPayload): ToolResponseResult {
+    const output = payload.output || [];
+    const content =
+        payload.output_text ||
+        output
+            .flatMap((item) => (item.type === "message" ? item.content || [] : []))
+            .map((item) => item.text || "")
+            .join("");
+    const toolCalls = output
+        .filter((item): item is Extract<ResponseApiOutput, { type?: "function_call" }> => item.type === "function_call")
+        .map((item): ResponseToolCall | null => {
+            const id = item.call_id || item.id || "";
+            if (!id || !item.name) return null;
+            return { id, type: "function", function: { name: item.name, arguments: item.arguments || "{}" } };
+        })
+        .filter((item): item is ResponseToolCall => Boolean(item));
+    return { content, toolCalls };
+}
+
+async function requestStreamingToolResponse(config: AiConfig, body: Record<string, unknown>, onDelta?: (text: string) => void, signal?: AbortSignal): Promise<ToolResponseResult> {
+    const response = await fetch(aiApiUrl(config, "/responses"), {
+        method: "POST",
+        headers: { ...(await aiHeaders(config, "application/json")), Accept: "text/event-stream" },
+        body: JSON.stringify({ ...body, stream: true }),
+        signal,
+    });
+    if (!response.ok) throw new Error(await readFetchResponseError(response, "Agent 请求失败"));
+    if (!response.headers.get("content-type")?.toLowerCase().includes("text/event-stream")) {
+        const payload = (await response.json()) as ResponseApiPayload;
+        validateResponseApiPayload(payload);
+        return parseResponseApiPayload(payload);
+    }
+    if (!response.body) {
+        const payload = (await response.json()) as ResponseApiPayload;
+        validateResponseApiPayload(payload);
+        return parseResponseApiPayload(payload);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const state: ResponseStreamState = { buffer: "", text: "", toolCalls: new Map(), toolItemIds: new Map() };
+    let emittedText = "";
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        consumeResponseStreamText(state, decoder.decode(value, { stream: true }));
+        if (state.error) throw new Error(state.error);
+        if (state.text !== emittedText) {
+            emittedText = state.text;
+            onDelta?.(state.text);
+        }
+    }
+    consumeResponseStreamText(state, decoder.decode(), true);
+    if (state.error) throw new Error(state.error);
+    if (state.text !== emittedText) onDelta?.(state.text);
+
+    const completed = state.payload ? parseResponseApiPayload(state.payload) : { content: "", toolCalls: [] };
+    return {
+        content: state.text || completed.content,
+        toolCalls: completed.toolCalls.length ? completed.toolCalls : Array.from(state.toolCalls.values()),
+    };
+}
+
+function consumeResponseStreamText(state: ResponseStreamState, text: string, flush = false) {
+    state.buffer += text;
+    for (;;) {
+        const match = state.buffer.match(/\r?\n\r?\n/);
+        if (!match) break;
+        const index = match.index ?? 0;
+        consumeResponseStreamBlock(state, state.buffer.slice(0, index));
+        state.buffer = state.buffer.slice(index + match[0].length);
+    }
+    if (flush && state.buffer.trim()) {
+        consumeResponseStreamBlock(state, state.buffer);
+        state.buffer = "";
+    }
+}
+
+function consumeResponseStreamBlock(state: ResponseStreamState, block: string) {
+    const data = block
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).replace(/^ /, ""))
+        .join("\n")
+        .trim();
+    if (!data || data === "[DONE]") return;
+    const event = JSON.parse(data) as Record<string, unknown>;
+    const type = typeof event.type === "string" ? event.type : "";
+    const error = responseEventError(event);
+    if (error) state.error = error;
+    if (type === "response.output_text.delta" && typeof event.delta === "string") state.text += event.delta;
+    if (type === "response.output_text.done" && !state.text && typeof event.text === "string") state.text = event.text;
+    if ((type === "response.output_item.added" || type === "response.output_item.done") && isRecordValue(event.item)) collectResponseToolCall(state, event.item);
+    if (type === "response.function_call_arguments.delta") collectResponseToolArguments(state, event, false);
+    if (type === "response.function_call_arguments.done") collectResponseToolArguments(state, event, true);
+    if (type === "response.completed" && isRecordValue(event.response)) state.payload = event.response as ResponseApiPayload;
+    else if (Array.isArray(event.output)) state.payload = event as ResponseApiPayload;
+}
+
+function collectResponseToolCall(state: ResponseStreamState, item: Record<string, unknown>) {
+    if (item.type !== "function_call") return;
+    const id = stringRecordValue(item.call_id) || stringRecordValue(item.id);
+    const name = stringRecordValue(item.name);
+    if (!id || !name) return;
+    const itemId = stringRecordValue(item.id);
+    if (itemId) state.toolItemIds.set(itemId, id);
+    state.toolCalls.set(id, { id, type: "function", function: { name, arguments: stringRecordValue(item.arguments) || state.toolCalls.get(id)?.function.arguments || "" } });
+}
+
+function collectResponseToolArguments(state: ResponseStreamState, event: Record<string, unknown>, done: boolean) {
+    const itemId = stringRecordValue(event.item_id);
+    const id = stringRecordValue(event.call_id) || state.toolItemIds.get(itemId) || itemId;
+    if (!id) return;
+    const current = state.toolCalls.get(id);
+    const name = stringRecordValue(event.name) || current?.function.name || "";
+    if (!name) return;
+    const nextArguments = done ? stringRecordValue(event.arguments) : `${current?.function.arguments || ""}${stringRecordValue(event.delta)}`;
+    state.toolCalls.set(id, { id, type: "function", function: { name, arguments: nextArguments || "{}" } });
+}
+
+function validateResponseApiPayload(payload: ResponseApiPayload) {
+    if (typeof payload.code === "number" && payload.code !== 0) throw new Error(payload.msg || "请求失败");
+    if (payload.error?.message) throw new Error(payload.error.message);
+}
+
+async function readFetchResponseError(response: Response, fallback: string) {
+    const text = await response.text();
+    if (!text) return readStatusError(response.status, fallback);
+    try {
+        const payload = JSON.parse(text) as ResponseApiPayload;
+        return payload.msg || payload.error?.message || readStatusError(response.status, fallback);
+    } catch {
+        return text.slice(0, 300) || readStatusError(response.status, fallback);
+    }
+}
+
+function responseEventError(event: Record<string, unknown>) {
+    const error = isRecordValue(event.error) ? event.error : undefined;
+    return stringRecordValue(event.msg) || stringRecordValue(error?.message);
+}
+
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+    return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function stringRecordValue(value: unknown) {
+    return typeof value === "string" ? value : "";
 }
 
 export async function fetchImageModels(config: AiConfig) {

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Home, ImageIcon, Images, List, Menu, MessageSquare, Music2, Plus, Redo2, Settings2, Trash2, Undo2, Upload, Video } from "lucide-react";
+import { Bot, Home, ImageIcon, Images, List, Menu, Music2, Plus, Redo2, Settings2, Trash2, Undo2, Upload, Video } from "lucide-react";
 import { saveAs } from "file-saver";
 
 import { requestEdit, requestGeneration, requestImageQuestion } from "@/services/api/image";
@@ -44,6 +44,7 @@ import { AssetPickerModal, type AssetPickerTab, type InsertAssetPayload } from "
 import { CanvasZoomControls } from "../components/canvas-zoom-controls";
 import { UpdateDialog } from "../components/update-dialog";
 import { useCanvasStore } from "../stores/use-canvas-store";
+import { applyCanvasAgentOps, type CanvasAgentOp, type CanvasAgentSnapshot } from "../utils/canvas-agent-ops";
 import { buildCanvasResourceReferences, buildNodeMentionReferences } from "../utils/canvas-resource-references";
 import {
     CanvasNodeType,
@@ -1291,6 +1292,7 @@ function InfiniteCanvasPage() {
             }
 
             if (isModifierShortcut && !event.altKey && key === "c") {
+                if (window.getSelection()?.toString()) return;
                 event.preventDefault();
                 copySelectedNodes();
                 return;
@@ -2138,6 +2140,48 @@ function InfiniteCanvasPage() {
         [effectiveConfig, openConfigDialog],
     );
 
+    const agentSnapshot = useMemo<CanvasAgentSnapshot>(
+        () => ({ projectId, title: currentProject?.title || "未命名画布", nodes, connections, selectedNodeIds: Array.from(selectedNodeIds), viewport }),
+        [connections, currentProject?.title, nodes, projectId, selectedNodeIds, viewport],
+    );
+
+    const applyAgentOps = useCallback(
+        (ops?: CanvasAgentOp[]) => {
+            const safeOps = Array.isArray(ops) ? ops.filter((op) => op?.type) : [];
+            const before: CanvasAgentSnapshot = {
+                projectId,
+                title: currentProject?.title || "未命名画布",
+                nodes: nodesRef.current,
+                connections: connectionsRef.current,
+                selectedNodeIds: Array.from(selectedNodeIdsRef.current),
+                viewport: viewportRef.current,
+            };
+            const generationOps = safeOps.filter((op): op is Extract<CanvasAgentOp, { type: "run_generation" }> => op.type === "run_generation" && Boolean(op.nodeId));
+            const next = applyCanvasAgentOps(before, safeOps.filter((op) => op.type !== "run_generation"));
+            nodesRef.current = next.nodes;
+            connectionsRef.current = next.connections;
+            selectedNodeIdsRef.current = new Set(next.selectedNodeIds);
+            viewportRef.current = next.viewport;
+            setNodes(next.nodes);
+            setConnections(next.connections);
+            setSelectedNodeIds(new Set(next.selectedNodeIds));
+            setSelectedConnectionId(null);
+            setViewport(next.viewport);
+            setContextMenu(null);
+            if (generationOps.length) {
+                queueMicrotask(() => {
+                    generationOps.forEach((op) => {
+                        const target = nodesRef.current.find((node) => node.id === op.nodeId);
+                        const prompt = op.prompt?.trim() ? op.prompt : target?.metadata?.composerContent ?? target?.metadata?.prompt ?? "";
+                        void handleGenerateNode(op.nodeId, op.mode || target?.metadata?.generationMode || "image", prompt);
+                    });
+                });
+            }
+            return { ...next, projectId, title: currentProject?.title || "未命名画布" };
+        },
+        [currentProject?.title, handleGenerateNode, projectId],
+    );
+
     const handleRetryNode = useCallback(
         async (node: CanvasNodeData) => {
             const sourceNode = findRetrySourceNode(node.id, nodesRef.current, connectionsRef.current) || node;
@@ -2656,12 +2700,12 @@ function InfiniteCanvasPage() {
                 <CanvasAssistantPanel
                     nodes={nodes}
                     selectedNodeIds={selectedNodeIds}
+                    snapshot={agentSnapshot}
                     sessions={chatSessions}
                     activeSessionId={activeChatId}
                     onSelectNodeIds={setSelectedNodeIds}
                     onSessionsChange={handleAssistantSessionsChange}
-                    onInsertImage={insertAssistantImage}
-                    onInsertText={insertAssistantText}
+                    onApplyOps={applyAgentOps}
                     onPasteImage={pasteAssistantImage}
                     onCollapseStart={() => setAssistantCollapsed(true)}
                     onCollapse={() => setAssistantMounted(false)}
@@ -2818,20 +2862,20 @@ function CanvasTopBar({
                             setAccountOpen(false);
                         }}
                     />
-                    {/* {assistantCollapsed ? (
+                    {assistantCollapsed ? (
                         <>
                             <span className="h-6 w-px" style={{ background: theme.toolbar.border }} />
                             <Button
                                 type="text"
-                                className="!h-10 !rounded-xl !px-3 !font-medium"
-                                style={{ background: theme.toolbar.panel, color: theme.node.text, boxShadow: "0 10px 30px rgba(28,25,23,.10)" }}
-                                icon={<MessageSquare className="size-4" />}
+                                className="!h-10 !rounded-lg !px-3 !font-medium"
+                                style={{ color: theme.node.text }}
+                                icon={<Bot className="size-4" />}
                                 onClick={onExpandAssistant}
                             >
-                                助手
+                                Agent
                             </Button>
                         </>
-                    ) : null} */}
+                    ) : null}
                 </div>
             </div>
             <Modal title="快捷键" open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>

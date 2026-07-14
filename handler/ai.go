@@ -26,6 +26,10 @@ func AIChatCompletions(w http.ResponseWriter, r *http.Request) {
 	proxyAIRequest(w, r, "/chat/completions")
 }
 
+func AIResponses(w http.ResponseWriter, r *http.Request) {
+	proxyAIRequest(w, r, "/responses")
+}
+
 func AIAudioSpeech(w http.ResponseWriter, r *http.Request) {
 	proxyAIRequest(w, r, "/audio/speech")
 }
@@ -92,7 +96,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 	path = resolveAIProxyPath(channel.BaseURL, modelName, path)
-	request, err := http.NewRequest(http.MethodPost, service.BuildModelChannelURL(channel, path), bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, service.BuildModelChannelURL(channel, path), bytes.NewReader(body))
 	if err != nil {
 		log.Printf("AI proxy build request failed: url=%s err=%v", service.BuildModelChannelURL(channel, path), err)
 		Fail(w, "AI 接口请求失败")
@@ -101,6 +105,9 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 	request.Header.Set("Authorization", "Bearer "+channel.APIKey)
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
+	}
+	if accept := r.Header.Get("Accept"); accept != "" {
+		request.Header.Set("Accept", accept)
 	}
 	if err := service.ConsumeUserCredits(user.ID, modelName, credits, path); err != nil {
 		FailError(w, err)
@@ -143,7 +150,30 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, onFailure func
 			w.Header().Add(key, value)
 		}
 	}
+	isEventStream := strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "text/event-stream")
+	if isEventStream {
+		w.Header().Set("X-Accel-Buffering", "no")
+	}
 	w.WriteHeader(response.StatusCode)
+	if isEventStream {
+		flusher, _ := w.(http.Flusher)
+		buffer := make([]byte, 32*1024)
+		for {
+			count, readErr := response.Body.Read(buffer)
+			if count > 0 {
+				if _, writeErr := w.Write(buffer[:count]); writeErr != nil {
+					return
+				}
+				if flusher != nil {
+					flusher.Flush()
+				}
+			}
+			if readErr != nil {
+				break
+			}
+		}
+		return
+	}
 	_, _ = io.Copy(w, response.Body)
 }
 

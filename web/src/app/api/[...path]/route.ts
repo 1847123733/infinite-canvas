@@ -38,6 +38,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
             body: hasBody ? request.body : undefined,
             duplex: hasBody ? "half" : undefined,
             redirect: "manual",
+            signal: request.signal,
         } as RequestInit & { duplex?: "half" });
 
         return new Response(response.body, {
@@ -46,6 +47,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
             headers: responseHeaders(response),
         });
     } catch (error) {
+        if (request.signal.aborted) return new Response(null, { status: 499 });
         console.error("Failed to proxy", target, error);
         return Response.json({ code: 1, data: null, msg: "接口连接失败，请确认后端服务已启动" }, { status: 502 });
     }
