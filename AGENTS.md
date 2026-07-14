@@ -28,7 +28,6 @@
 - `model/` 只定义数据结构、枚举和简单模型方法。
 - 列表接口优先沿用 `model.Query`、`Normalize`、分页和标签筛选方式。
 - 业务接口保持 `{ code, data, msg }` 的响应结构。
-- 新增数据表时同步更新 `docs/backend-database.md`。
 
 ## 前端规范
 
@@ -63,20 +62,6 @@
 - 画布顶部工具栏和状态信息优先采用极简扁平风格：无边框、无阴影、无胶囊背景，融入整体背景，弱化按钮感，仅保留轻微 hover 反馈，保持简洁现代、低视觉重量。
 - 图片节点尺寸逻辑要尊重原始比例，除非功能明确要求自由变形。
 - 批量生成、多图展示、助手面板等画布交互要尽量简洁，不要占用过多画布空间。
-
-## 文档规范
-
-- README 保持简洁，只放项目介绍、核心功能、快速开始和文档入口。
-- `docs/index.md` 放给 AI 使用的文档索引，不要再放到 `docs/content/docs/` 内容目录里。
-- 详细功能介绍写到 `docs/content/docs/overview/features.mdx`。
-- 后续待办写到 `docs/content/docs/progress/todo.mdx`。
-- 已实现但还需要用户测试确认的事项写到 `docs/content/docs/progress/pending-test.mdx`。
-- `docs/content/docs/progress/pending-test.mdx` 用来记录这个版本实际做了哪些可测试变更；`CHANGELOG.md` 的 `Unreleased` 只保留对这些变更的版本级归纳，避免逐条照搬实现细节。
-- 每次 todo 事项完成后，先从 `docs/content/docs/progress/todo.mdx` 移到 `docs/content/docs/progress/pending-test.mdx`，不要直接写进正式功能说明；用户确认测试通过后再更新 `docs/content/docs/overview/features.mdx`。
-- 每次任务完成前，都要根据实际变更检查并更新 `docs/content/docs/progress/todo.mdx` 和 `docs/content/docs/progress/pending-test.mdx`；如果功能或待办没有变化，也要确认无需修改。
-- 接口响应规则写到 `docs/content/docs/backend/api-response.mdx`。
-- 数据库结构写到 `docs/content/docs/backend/backend-database.mdx`。
-- 文档不要写过期日期；除非用户明确要求记录具体时间。
 
 ## 发版本流程
 
