@@ -31,6 +31,7 @@ type ModelCost struct {
 type PublicModelChannelSetting struct {
 	AvailableModels    []string          `json:"availableModels"`
 	ModelNames         map[string]string `json:"modelNames"`
+	ModelModes         map[string]string `json:"modelModes"`
 	ModelCosts         []ModelCost       `json:"modelCosts"`
 	DefaultModel       string            `json:"defaultModel"`
 	DefaultImageModel  string            `json:"defaultImageModel"`

@@ -10,6 +10,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -61,6 +62,7 @@ func GenerateDesktopCloudImage(authHeader string, input DesktopGenerationInput) 
 	if err != nil {
 		return zero, err
 	}
+	log.Printf("desktop generation ticket exchanged task=%s model=%s baseURL=%s references=%d hasMask=%t", exchange.Task.ID, exchange.Model.ModelName, exchange.Model.BaseURL, len(input.References), input.Mask != nil)
 	imageBytes, mimeType, err := requestDesktopProviderImage(exchange, input)
 	if err != nil {
 		_ = reportDesktopGenerationFailure(authHeader, exchange.Task.ID, "provider_request", err, map[string]any{
@@ -143,7 +145,7 @@ func requestDesktopProviderGeneration(exchange DesktopCloudExchangeResult) ([]by
 	}
 	request.Header.Set("Authorization", "Bearer "+exchange.Model.APIKey)
 	request.Header.Set("Content-Type", "application/json")
-	return doDesktopProviderImageRequest(request)
+	return doDesktopProviderImageRequest(request, exchange.Model.ModelName)
 }
 
 func requestDesktopProviderEdit(exchange DesktopCloudExchangeResult, input DesktopGenerationInput) ([]byte, string, error) {
@@ -191,21 +193,25 @@ func requestDesktopProviderEdit(exchange DesktopCloudExchangeResult, input Deskt
 	}
 	request.Header.Set("Authorization", "Bearer "+exchange.Model.APIKey)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
-	return doDesktopProviderImageRequest(request)
+	return doDesktopProviderImageRequest(request, exchange.Model.ModelName)
 }
 
-func doDesktopProviderImageRequest(request *http.Request) ([]byte, string, error) {
+func doDesktopProviderImageRequest(request *http.Request, modelName string) ([]byte, string, error) {
+	log.Printf("desktop provider image request url=%s model=%s", request.URL.String(), modelName)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
+		log.Printf("desktop provider image request failed url=%s model=%s err=%v", request.URL.String(), modelName, err)
 		return nil, "", desktopGenerationError{message: "图片模型请求失败"}
 	}
 	defer response.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(response.Body, 16<<20))
 	if response.StatusCode >= http.StatusBadRequest {
+		log.Printf("desktop provider image error url=%s model=%s status=%d body=%s", request.URL.String(), modelName, response.StatusCode, logSnippet(body))
 		return nil, "", desktopGenerationError{message: readDesktopProviderError(body, response.StatusCode)}
 	}
 	var payload desktopProviderImagePayload
 	if err := json.Unmarshal(body, &payload); err != nil {
+		log.Printf("desktop provider image response invalid url=%s model=%s status=%d body=%s", request.URL.String(), modelName, response.StatusCode, logSnippet(body))
 		return nil, "", desktopGenerationError{message: "图片模型返回格式不正确"}
 	}
 	if len(payload.Data) == 0 {
@@ -364,4 +370,12 @@ func (err desktopGenerationError) SafeMessage() string {
 
 func randomEventID() string {
 	return uuid.NewString()
+}
+
+func logSnippet(body []byte) string {
+	text := strings.TrimSpace(string(body))
+	if len(text) > 500 {
+		return text[:500] + "..."
+	}
+	return text
 }

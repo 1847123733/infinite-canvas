@@ -169,6 +169,7 @@ export type AdminModelChannel = {
 export type AdminPublicModelChannelSettings = {
     availableModels: string[];
     modelNames: Record<string, string>;
+    modelModes: Record<string, ModelCapability>;
     modelCosts: AdminModelCost[];
     defaultModel: string;
     defaultImageModel: string;
@@ -186,6 +187,8 @@ export type AdminModelCost = {
 export type AdminPublicSettings = {
     modelChannel: AdminPublicModelChannelSettings;
 };
+
+export type ModelCapability = "image" | "video" | "text" | "audio";
 
 export type AdminPrivateSettings = {
     channels: AdminModelChannel[];

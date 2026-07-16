@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import type { AdminPublicSettings } from "@/services/api/admin";
+import type { AdminPublicSettings, ModelCapability } from "@/services/api/admin";
 import { fetchCloudPublicSettings, fetchPublicSettings, syncDesktopCloudPublicSettings } from "@/services/api/settings";
 import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
 
@@ -28,6 +28,7 @@ export type AiConfig = {
     systemPrompt: string;
     models: string[];
     modelNames: Record<string, string>;
+    modelModes: Record<string, ModelCapability>;
     imageModels: string[];
     videoModels: string[];
     textModels: string[];
@@ -48,7 +49,7 @@ export type WebdavSyncConfig = {
 };
 
 export const CONFIG_STORE_KEY = "infinite-canvas:ai_config_store";
-export type ModelCapability = "image" | "video" | "text" | "audio";
+export type { ModelCapability };
 
 export const defaultConfig: AiConfig = {
     channelMode: "remote",
@@ -70,6 +71,7 @@ export const defaultConfig: AiConfig = {
     systemPrompt: "",
     models: [],
     modelNames: {},
+    modelModes: {},
     imageModels: [],
     videoModels: [],
     textModels: [],
@@ -112,20 +114,22 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
     if (!modelChannel) return { ...config, channelMode };
     const models = modelChannel.availableModels;
     const modelNames = pickModelNames(modelChannel.modelNames || {}, models);
-    const textModels = filterModelsByCapability(models, "text");
-    const imageModels = filterModelsByCapability(models, "image");
-    const videoModels = filterModelsByCapability(models, "video");
-    const audioModels = filterModelsByCapability(models, "audio");
-    const fallbackTextModel = validDefault(modelChannel.defaultTextModel, textModels) || preferredModel(textModels, isTextModelName);
+    const modelModes = pickModelModes(modelChannel.modelModes || {}, models);
+    const textModels = filterModelsByCapability(models, "text", modelModes);
+    const imageModels = filterModelsByCapability(models, "image", modelModes);
+    const videoModels = filterModelsByCapability(models, "video", modelModes);
+    const audioModels = filterModelsByCapability(models, "audio", modelModes);
+    const fallbackTextModel = validDefault(modelChannel.defaultTextModel, textModels) || preferredModel(textModels);
     const fallbackModel = validDefault(modelChannel.defaultModel, textModels) || fallbackTextModel;
-    const fallbackImageModel = validDefault(modelChannel.defaultImageModel, imageModels) || preferredModel(imageModels, isImageModelName);
-    const fallbackVideoModel = validDefault(modelChannel.defaultVideoModel, videoModels) || preferredModel(videoModels, isVideoModelName);
-    const fallbackAudioModel = preferredModel(audioModels, isAudioModelName);
+    const fallbackImageModel = validDefault(modelChannel.defaultImageModel, imageModels) || preferredModel(imageModels);
+    const fallbackVideoModel = validDefault(modelChannel.defaultVideoModel, videoModels) || preferredModel(videoModels);
+    const fallbackAudioModel = preferredModel(audioModels);
     return {
         ...config,
         channelMode,
         models,
         modelNames,
+        modelModes,
         imageModels,
         videoModels,
         textModels,
@@ -148,39 +152,24 @@ function pickModelNames(source: Record<string, string>, models: string[]) {
     return Object.fromEntries(Object.entries(source).filter(([model, name]) => allowed.has(model) && Boolean(name?.trim())));
 }
 
-function preferredModel(models: string[], predicate: (model: string) => boolean) {
-    return models.find(predicate) || "";
+function pickModelModes(source: Record<string, ModelCapability>, models: string[]) {
+    const allowed = new Set(models);
+    return Object.fromEntries(Object.entries(source).filter(([model, mode]) => allowed.has(model) && modelCapabilities.has(mode))) as Record<string, ModelCapability>;
 }
 
-function isVideoModelName(model: string) {
-    const value = model.toLowerCase();
-    return value.includes("seedance") || value.includes("video") || value.includes("sora") || value.includes("veo") || value.includes("kling") || value.includes("wan") || value.includes("hailuo");
+const modelCapabilities = new Set<ModelCapability>(["image", "video", "text", "audio"]);
+
+function preferredModel(models: string[]) {
+    return models[0] || "";
 }
 
-function isImageModelName(model: string) {
-    const value = model.toLowerCase();
-    return !isVideoModelName(model) && !isAudioModelName(model) && (value.includes("seedream") || value.includes("gpt-image") || value.includes("image") || value.includes("dall-e") || value.includes("dalle") || value.includes("imagen") || value.includes("flux") || value.includes("sdxl") || value.includes("stable-diffusion") || value.includes("midjourney"));
-}
-
-function isAudioModelName(model: string) {
-    const value = model.toLowerCase();
-    return value.includes("audio") || value.includes("tts") || value.includes("speech") || value.includes("voice") || value.includes("music") || value.includes("sound");
-}
-
-function isTextModelName(model: string) {
-    return !isImageModelName(model) && !isVideoModelName(model) && !isAudioModelName(model);
-}
-
-export function modelMatchesCapability(model: string, capability?: ModelCapability) {
+export function modelMatchesCapability(model: string, capability?: ModelCapability, modelModes: Record<string, ModelCapability> = {}) {
     if (!capability) return true;
-    if (capability === "image") return isImageModelName(model);
-    if (capability === "video") return isVideoModelName(model);
-    if (capability === "audio") return isAudioModelName(model);
-    return isTextModelName(model);
+    return modelModes[model] === capability;
 }
 
-export function filterModelsByCapability(models: string[], capability?: ModelCapability) {
-    return capability ? models.filter((model) => modelMatchesCapability(model, capability)) : models;
+export function filterModelsByCapability(models: string[], capability?: ModelCapability, modelModes: Record<string, ModelCapability> = {}) {
+    return capability ? models.filter((model) => modelMatchesCapability(model, capability, modelModes)) : models;
 }
 
 export function selectableModelsByCapability(config: AiConfig, capability?: ModelCapability) {
@@ -226,6 +215,10 @@ function statefulDesktopCloudSync() {
     return cloud.isDesktopCloud && Boolean(cloud.accessToken) && Boolean(cloud.cloudBaseUrl) && Boolean(window.desktopApp);
 }
 
+function configWithPublicSettings(config: AiConfig, publicSettings: AdminPublicSettings) {
+    return resolveEffectiveConfig(config, publicSettings.modelChannel);
+}
+
 export const useConfigStore = create<ConfigStore>()(
     persist(
         (set, get) => ({
@@ -253,7 +246,8 @@ export const useConfigStore = create<ConfigStore>()(
                 if (get().isPublicSettingsLoading) return;
                 set({ isPublicSettingsLoading: true });
                 try {
-                    set({ publicSettings: await loadCurrentPublicSettings() });
+                    const publicSettings = await loadCurrentPublicSettings();
+                    set((state) => ({ publicSettings, config: configWithPublicSettings(state.config, publicSettings) }));
                 } finally {
                     set({ isPublicSettingsLoading: false });
                 }
@@ -265,7 +259,7 @@ export const useConfigStore = create<ConfigStore>()(
                 set({ isPublicSettingsLoading: true });
                 try {
                     const publicSettings = await syncCurrentPublicSettings();
-                    set({ publicSettings });
+                    set((state) => ({ publicSettings, config: configWithPublicSettings(state.config, publicSettings) }));
                     return publicSettings;
                 } finally {
                     set({ isPublicSettingsLoading: false });
@@ -304,10 +298,11 @@ export const useConfigStore = create<ConfigStore>()(
                         videoWatermark: config.videoWatermark || "false",
                         canvasImageCount: config.canvasImageCount || "3",
                         modelNames: config.modelNames || {},
-                        imageModels: Array.isArray(persistedConfig.imageModels) ? normalizeModelList(config.imageModels) : filterModelsByCapability(config.models, "image"),
-                        videoModels: Array.isArray(persistedConfig.videoModels) ? normalizeModelList(config.videoModels) : filterModelsByCapability(config.models, "video"),
-                        textModels: Array.isArray(persistedConfig.textModels) ? normalizeModelList(config.textModels) : filterModelsByCapability(config.models, "text"),
-                        audioModels: Array.isArray(persistedConfig.audioModels) ? normalizeModelList(config.audioModels) : filterModelsByCapability(config.models, "audio"),
+                        modelModes: config.modelModes || {},
+                        imageModels: Array.isArray(persistedConfig.imageModels) ? normalizeModelList(config.imageModels) : filterModelsByCapability(config.models, "image", config.modelModes),
+                        videoModels: Array.isArray(persistedConfig.videoModels) ? normalizeModelList(config.videoModels) : filterModelsByCapability(config.models, "video", config.modelModes),
+                        textModels: Array.isArray(persistedConfig.textModels) ? normalizeModelList(config.textModels) : filterModelsByCapability(config.models, "text", config.modelModes),
+                        audioModels: Array.isArray(persistedConfig.audioModels) ? normalizeModelList(config.audioModels) : filterModelsByCapability(config.models, "audio", config.modelModes),
                     },
                 };
             },

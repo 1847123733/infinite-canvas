@@ -134,6 +134,9 @@ func normalizePublicSettingWithChannels(setting model.PublicSetting, channels []
 	if setting.ModelChannel.ModelNames == nil {
 		setting.ModelChannel.ModelNames = map[string]string{}
 	}
+	if setting.ModelChannel.ModelModes == nil {
+		setting.ModelChannel.ModelModes = map[string]string{}
+	}
 	if setting.ModelChannel.ModelCosts == nil {
 		setting.ModelChannel.ModelCosts = []model.ModelCost{}
 	}
@@ -166,10 +169,22 @@ func normalizePublicSettingWithChannels(setting model.PublicSetting, channels []
 		}
 	}
 	setting.ModelChannel.ModelNames = modelNames
-	setting.ModelChannel.DefaultTextModel = repairDefaultModel(setting.ModelChannel.DefaultTextModel, setting.ModelChannel.AvailableModels, isTextModelName)
-	setting.ModelChannel.DefaultImageModel = repairDefaultModel(setting.ModelChannel.DefaultImageModel, setting.ModelChannel.AvailableModels, isImageModelName)
-	setting.ModelChannel.DefaultVideoModel = repairDefaultModel(setting.ModelChannel.DefaultVideoModel, setting.ModelChannel.AvailableModels, isVideoModelName)
-	setting.ModelChannel.DefaultModel = repairDefaultModel(setting.ModelChannel.DefaultModel, setting.ModelChannel.AvailableModels, isTextModelName)
+	modelModes := map[string]string{}
+	for modelName, mode := range setting.ModelChannel.ModelModes {
+		modelName = strings.TrimSpace(modelName)
+		mode = normalizeModelMode(mode)
+		if modelName != "" && mode != "" && allowedModels[modelName] {
+			modelModes[modelName] = mode
+		}
+	}
+	setting.ModelChannel.ModelModes = modelModes
+	textModels := modelsByMode(setting.ModelChannel.AvailableModels, modelModes, "text")
+	imageModels := modelsByMode(setting.ModelChannel.AvailableModels, modelModes, "image")
+	videoModels := modelsByMode(setting.ModelChannel.AvailableModels, modelModes, "video")
+	setting.ModelChannel.DefaultTextModel = repairDefaultModel(setting.ModelChannel.DefaultTextModel, textModels)
+	setting.ModelChannel.DefaultImageModel = repairDefaultModel(setting.ModelChannel.DefaultImageModel, imageModels)
+	setting.ModelChannel.DefaultVideoModel = repairDefaultModel(setting.ModelChannel.DefaultVideoModel, videoModels)
+	setting.ModelChannel.DefaultModel = repairDefaultModel(setting.ModelChannel.DefaultModel, textModels)
 	return setting
 }
 
@@ -323,16 +338,11 @@ func uniqueModelNames(models []string) []string {
 	return result
 }
 
-func repairDefaultModel(current string, models []string, preferred func(string) bool) string {
+func repairDefaultModel(current string, models []string) string {
 	current = strings.TrimSpace(current)
 	for _, item := range models {
 		if item == current {
 			return current
-		}
-	}
-	for _, item := range models {
-		if preferred(item) {
-			return item
 		}
 	}
 	if len(models) > 0 {
@@ -341,18 +351,26 @@ func repairDefaultModel(current string, models []string, preferred func(string) 
 	return ""
 }
 
-func isVideoModelName(modelName string) bool {
-	name := strings.ToLower(strings.TrimSpace(modelName))
-	return strings.Contains(name, "seedance") || strings.Contains(name, "video")
+func normalizeModelMode(mode string) string {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	switch mode {
+	case "chat", "text":
+		return "text"
+	case "image", "video", "audio":
+		return mode
+	default:
+		return ""
+	}
 }
 
-func isImageModelName(modelName string) bool {
-	name := strings.ToLower(strings.TrimSpace(modelName))
-	return strings.Contains(name, "seedream") || strings.Contains(name, "gpt-image") || strings.Contains(name, "image")
-}
-
-func isTextModelName(modelName string) bool {
-	return !isImageModelName(modelName) && !isVideoModelName(modelName)
+func modelsByMode(models []string, modes map[string]string, mode string) []string {
+	result := []string{}
+	for _, modelName := range models {
+		if modes[modelName] == mode {
+			result = append(result, modelName)
+		}
+	}
+	return result
 }
 
 func normalizeModelChannel(channel model.ModelChannel) model.ModelChannel {

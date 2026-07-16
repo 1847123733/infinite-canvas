@@ -66,6 +66,7 @@ func TestNormalizeSettingsPublishesEnabledChannelModelsAndRepairsDefaults(t *tes
 		Public: model.PublicSetting{
 			ModelChannel: model.PublicModelChannelSetting{
 				AvailableModels:   []string{"grok-imagine-video", "disabled-model"},
+				ModelModes:        map[string]string{"gpt-5.5": "text", "doubao-seedream-5.0-lite": "image", "doubao-seedance-2.0-fast": "video", "disabled-model": "text"},
 				DefaultModel:      "grok-imagine-video",
 				DefaultTextModel:  "missing-text",
 				DefaultImageModel: "missing-image",
@@ -96,5 +97,11 @@ func TestNormalizeSettingsPublishesEnabledChannelModelsAndRepairsDefaults(t *tes
 	}
 	if channel.DefaultVideoModel != "doubao-seedance-2.0-fast" {
 		t.Fatalf("default video model = %q, want seedance", channel.DefaultVideoModel)
+	}
+	if channel.ModelModes["doubao-seedream-5.0-lite"] != "image" {
+		t.Fatalf("seedream mode = %q, want image", channel.ModelModes["doubao-seedream-5.0-lite"])
+	}
+	if _, ok := channel.ModelModes["disabled-model"]; ok {
+		t.Fatal("disabled model mode should be removed")
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -121,16 +122,19 @@ func desktopCloudJSONRequest[T any](method string, path string, authHeader strin
 	}
 	response, err := desktopCloudHTTPClient.Do(request)
 	if err != nil {
+		log.Printf("desktop cloud request failed path=%s err=%v", path, err)
 		return zero, desktopCloudClientError{message: "云端控制服务请求失败"}
 	}
 	defer response.Body.Close()
 	bodyBytes, _ := io.ReadAll(io.LimitReader(response.Body, 2<<20))
 	var envelope desktopCloudEnvelope[T]
 	if err := json.Unmarshal(bodyBytes, &envelope); err != nil {
+		log.Printf("desktop cloud response invalid path=%s status=%d body=%s", path, response.StatusCode, logSnippet(bodyBytes))
 		return zero, desktopCloudClientError{message: "云端控制服务返回异常"}
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 || envelope.Code != 0 {
 		message := firstNonEmpty(strings.TrimSpace(envelope.Message), strings.TrimSpace(envelope.Msg), "云端控制服务请求失败")
+		log.Printf("desktop cloud request rejected path=%s status=%d code=%d msg=%s body=%s", path, response.StatusCode, envelope.Code, message, logSnippet(bodyBytes))
 		return zero, desktopCloudClientError{message: fmt.Sprintf("%s", message)}
 	}
 	return envelope.Data, nil

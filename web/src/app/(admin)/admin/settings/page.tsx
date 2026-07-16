@@ -29,6 +29,7 @@ const emptySettings: AdminSettings = {
         modelChannel: {
             availableModels: [],
             modelNames: {},
+            modelModes: {},
             modelCosts: [],
             defaultModel: "",
             defaultImageModel: "",
@@ -799,6 +800,7 @@ function normalizePublicSetting(setting: Partial<AdminSettings["public"]> = {}):
             ...(setting.modelChannel || {}),
             availableModels: setting.modelChannel?.availableModels || [],
             modelNames: setting.modelChannel?.modelNames || {},
+            modelModes: setting.modelChannel?.modelModes || {},
             modelCosts: normalizeModelCosts(setting.modelChannel?.modelCosts || []),
         },
     };
