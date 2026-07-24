@@ -39,6 +39,7 @@ type DesktopCloudGenerationModel struct {
 	APIKey      string `json:"apiKey"`
 	ModelName   string `json:"modelName"`
 	RequestMode string `json:"requestMode"`
+	Protocol    string `json:"protocol"`
 }
 
 type DesktopCloudGenerationOSS struct {

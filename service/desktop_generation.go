@@ -118,6 +118,13 @@ func GenerateDesktopCloudImage(authHeader string, input DesktopGenerationInput) 
 }
 
 func requestDesktopProviderImage(exchange DesktopCloudExchangeResult, input DesktopGenerationInput) ([]byte, string, error) {
+	protocol := strings.ToLower(strings.TrimSpace(exchange.Model.Protocol))
+	if protocol == "google" {
+		return requestDesktopGeminiGeneration(exchange, input)
+	}
+	if protocol == "grsai" {
+		return requestDesktopGrsaiGeneration(exchange, input)
+	}
 	if len(input.References) > 0 || input.Mask != nil {
 		return requestDesktopProviderEdit(exchange, input)
 	}

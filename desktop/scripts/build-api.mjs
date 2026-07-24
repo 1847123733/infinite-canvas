@@ -37,9 +37,18 @@ try {
     ? 'go build -ldflags="-s -w" -o api.exe'
     : 'go build -ldflags="-s -w" -o api'
 
+  // Go 链接器默认在系统盘临时目录($TMP)写出中间 exe,系统盘满了会导致
+  // "resize output file failed ... not enough space on the disk",
+  // 所以把 GOTMPDIR 指到与仓库同盘的目录。
+  const goTmpDir = join(projectRoot, '.go-tmp')
+  if (!existsSync(goTmpDir)) {
+    mkdirSync(goTmpDir, { recursive: true })
+  }
+
   execSync(buildCommand, {
     cwd: join(projectRoot),
-    stdio: 'inherit'
+    stdio: 'inherit',
+    env: { ...process.env, GOTMPDIR: goTmpDir }
   })
 
   // Copy to resources directory

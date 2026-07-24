@@ -1,6 +1,6 @@
 {
   "name": "infinite-canvas-desktop",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "无限画布-人工智能驱动的无限画布应用程序",
   "main": "out/main/main.js",
   "author": "王鑫凯",
@@ -71,7 +71,8 @@
           "arch": ["x64", "arm64"]
         }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "artifactName": "InfiniteCanvasSetup_${version}.${ext}"
     },
     "mac": {
       "target": [
