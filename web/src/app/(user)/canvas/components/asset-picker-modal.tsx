@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { useAssetStore, type Asset } from "@/stores/use-asset-store";
 import { fetchAssetLibrary, type AssetLibraryItem } from "@/services/api/assets";
 
+import { SHOW_ASSET_LIBRARY } from "../constants";
+
 export type AssetPickerTab = "my-assets" | "library";
 
 export type InsertAssetPayload = { kind: "text"; content: string; title: string } | { kind: "image"; dataUrl: string; title: string; storageKey?: string } | { kind: "video"; url: string; title: string; storageKey?: string; width?: number; height?: number };
@@ -35,7 +37,7 @@ export function AssetPickerModal({ open, defaultTab = "my-assets", onInsert, onC
                 onChange={(key) => setActiveTab(key as AssetPickerTab)}
                 items={[
                     { key: "my-assets", label: "我的素材", children: <MyAssetsTab onInsert={onInsert} /> },
-                    { key: "library", label: "素材库", children: <LibraryTab onInsert={onInsert} /> },
+                    ...(SHOW_ASSET_LIBRARY ? [{ key: "library", label: "素材库", children: <LibraryTab onInsert={onInsert} /> }] : []),
                 ]}
             />
         </Modal>
@@ -48,7 +50,7 @@ const kindOptions = [
     { label: "全部", value: "all" },
     { label: "文本", value: "text" },
     { label: "图片", value: "image" },
-    { label: "视频", value: "video" },
+    // { label: "视频", value: "video" },
 ];
 
 function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => void }) {

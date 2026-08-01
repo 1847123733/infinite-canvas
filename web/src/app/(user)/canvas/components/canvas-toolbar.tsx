@@ -7,6 +7,8 @@ import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type Ca
 import { useThemeStore } from "@/stores/use-theme-store";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 
+import { SHOW_ASSET_LIBRARY } from "../constants";
+
 export function CanvasToolbar({
     selectedCount,
     canUndo,
@@ -86,9 +88,11 @@ export function CanvasToolbar({
                     <Upload className="size-4.5" />
                 </ToolbarButton>
                 <Divider theme={theme} />
-                <ToolbarButton id="tool-library" label="素材库" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenAssetLibrary}>
-                    <Library className="size-4.5" />
-                </ToolbarButton>
+                {SHOW_ASSET_LIBRARY ? (
+                    <ToolbarButton id="tool-library" label="素材库" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenAssetLibrary}>
+                        <Library className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
                 <ToolbarButton id="tool-assets" label="我的素材" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenMyAssets}>
                     <FolderOpen className="size-4.5" />
                 </ToolbarButton>

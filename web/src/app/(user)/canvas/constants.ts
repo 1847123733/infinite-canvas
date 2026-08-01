@@ -1,6 +1,8 @@
 import { CanvasNodeType } from "./types";
 import type { CanvasNodeMetadata } from "./types";
 
+export const SHOW_ASSET_LIBRARY = false;
+
 type CanvasNodeSpec = {
     width: number;
     height: number;

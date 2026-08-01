@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowUpRight, ImageIcon, RefreshCw } from "lucide-react";
+import { ArrowUpRight, FolderPlus, ImageIcon, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Image } from "antd";
+import { App, Image } from "antd";
 
 import { cn } from "@/lib/utils";
 import { fetchRandomCreativeWorkshopPrompts, type CreativeWorkshopPrompt } from "@/services/api/creative-workshop";
+import { useAssetStore } from "@/stores/use-asset-store";
 import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
 
 const SHOWCASE_COUNT = 12;
@@ -127,6 +128,35 @@ export function HomePromptShowcase() {
 }
 
 function PromptShowcaseCard({ item, index }: { item: CreativeWorkshopPrompt; index: number }) {
+    const { message } = App.useApp();
+    const addAsset = useAssetStore((state) => state.addAsset);
+
+    const handleAddAsset = () => {
+        addAsset({
+            kind: "text",
+            title: item.title || "创意工坊提示词",
+            coverUrl: item.coverUrl || "",
+            tags: item.tags || [],
+            source: item.sourceName || "创意工坊",
+            note: item.description || undefined,
+            data: { content: item.prompt },
+            metadata: {
+                source: "creative-workshop",
+                promptId: item.id,
+                sourceId: item.sourceId,
+                sourceName: item.sourceName,
+                author: item.author,
+                sourceUrl: item.sourceUrl,
+                sourceCreatedAt: item.sourceCreatedAt,
+                imageMode: item.imageMode,
+                imageModel: item.imageModel,
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt,
+            },
+        });
+        message.success("已加入我的素材");
+    };
+
     return (
         <div
             className={cn(
@@ -142,6 +172,14 @@ function PromptShowcaseCard({ item, index }: { item: CreativeWorkshopPrompt; ind
                 className="!size-full !object-cover transition duration-700 ease-out group-hover:scale-[1.035]"
                 preview={{ mask: "点击图片放大" }}
             />
+            <button
+                type="button"
+                className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-md bg-white/90 px-2 py-1.5 text-[11px] font-medium !text-stone-900 shadow-sm backdrop-blur-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                onClick={handleAddAsset}
+            >
+                <FolderPlus className="size-3.5" />
+                加入资产
+            </button>
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent opacity-90 transition group-hover:opacity-100" />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3.5 lg:p-4">
                 <div className="mb-2 flex flex-wrap gap-1.5">
