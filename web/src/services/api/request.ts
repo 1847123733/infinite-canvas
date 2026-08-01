@@ -5,7 +5,9 @@ export type ApiParams = Record<string, string | string[] | number | number[] | u
 type ApiResponse<T> = {
     code: number;
     data: T;
-    msg: string;
+    msg?: string;
+    message?: string;
+    detail?: string;
 };
 
 export function compactApiParams(params: ApiParams) {
@@ -74,7 +76,7 @@ async function apiRequest<T>(config: { url: string; method: "GET" | "POST" | "DE
 
     const payload = result as ApiResponse<T>;
     if (response.status < 200 || response.status >= 300 || payload.code !== 0) {
-        throw new Error(payload.msg || "请求失败");
+        throw new Error(payload.msg || payload.message || payload.detail || "请求失败");
     }
 
     return payload.data;

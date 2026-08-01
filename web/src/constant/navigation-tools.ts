@@ -1,4 +1,4 @@
-import { ImagePlus, Images, Layers3, Maximize2, Wrench } from "lucide-react";
+import { ImagePlus, Images, Layers3, Maximize2, Sparkles, Wrench } from "lucide-react";
 
 export const navigationTools = [
     {
@@ -20,6 +20,11 @@ export const navigationTools = [
         slug: "assets",
         label: "我的素材",
         icon: Images,
+    },
+    {
+        slug: "creative-workshop",
+        label: "创意工坊",
+        icon: Sparkles,
     },
     {
         slug: "tools",

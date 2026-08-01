@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
-import { Bot, Home, ImageIcon, Images, List, Menu, Music2, Plus, Redo2, Settings2, Trash2, Undo2, Upload, Video } from "lucide-react";
+import { BookOpenText, Bot, Home, ImageIcon, Images, List, Menu, Music2, Plus, Redo2, Settings2, Trash2, Undo2, Upload, Video } from "lucide-react";
 import { saveAs } from "file-saver";
 
 import { requestEdit, requestGeneration, requestImageQuestion } from "@/services/api/image";
@@ -62,6 +63,9 @@ import {
 } from "../types";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio } from "@/types/media";
+import type { CreativeWorkshopPrompt } from "@/services/api/creative-workshop";
+
+const CanvasPromptLibraryPanel = dynamic(() => import("../components/canvas-prompt-library-panel").then((module) => module.CanvasPromptLibraryPanel), { ssr: false });
 
 type CanvasClipboard = {
     nodes: CanvasNodeData[];
@@ -291,6 +295,7 @@ function InfiniteCanvasPage() {
     const [batchPreview, setBatchPreview] = useState<{ rootId: string; index: number } | null>(null);
     const [assistantCollapsed, setAssistantCollapsed] = useState(true);
     const [assistantMounted, setAssistantMounted] = useState(false);
+    const [promptLibraryMounted, setPromptLibraryMounted] = useState(false);
     const [titleEditing, setTitleEditing] = useState(false);
     const [titleDraft, setTitleDraft] = useState("");
     const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
@@ -2354,6 +2359,26 @@ function InfiniteCanvasPage() {
         [screenToCanvas, size.height, size.width],
     );
 
+    const insertWorkshopPrompt = useCallback(
+        (item: CreativeWorkshopPrompt) => {
+            if (!item.prompt.trim()) {
+                message.warning("提示词内容为空，无法插入画布");
+                return;
+            }
+            const center = screenToCanvas((containerRef.current?.getBoundingClientRect().left || 0) + size.width / 2, (containerRef.current?.getBoundingClientRect().top || 0) + size.height / 2);
+            const node = {
+                ...createCanvasNode(CanvasNodeType.Text, center, { content: item.prompt, status: NODE_STATUS_SUCCESS }),
+                title: item.title || "创意工坊提示词",
+            };
+
+            setNodes((prev) => [...prev, node]);
+            setSelectedNodeIds(new Set([node.id]));
+            setSelectedConnectionId(null);
+            message.success("已插入文本节点");
+        },
+        [message, screenToCanvas, size.height, size.width],
+    );
+
     const handleAssetInsert = useCallback(
         (payload: InsertAssetPayload) => {
             if (payload.kind === "text") {
@@ -2377,6 +2402,7 @@ function InfiniteCanvasPage() {
 
     return (
         <main className="flex h-full min-h-0 overflow-hidden" style={{ background: theme.canvas.background, color: theme.node.text }}>
+            {promptLibraryMounted ? <CanvasPromptLibraryPanel onInsert={insertWorkshopPrompt} onCollapse={() => setPromptLibraryMounted(false)} /> : null}
             <section className="relative min-w-0 flex-1 overflow-hidden">
                 <CanvasTopBar
                     title={currentProject?.title || "未命名画布"}
@@ -2395,6 +2421,8 @@ function InfiniteCanvasPage() {
                     onImportImage={() => handleUploadRequest()}
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}
+                    promptLibraryCollapsed={!promptLibraryMounted}
+                    onExpandPromptLibrary={() => setPromptLibraryMounted(true)}
                     assistantCollapsed={assistantCollapsed}
                     onExpandAssistant={() => {
                         setAssistantMounted(true);
@@ -2732,6 +2760,8 @@ function CanvasTopBar({
     onImportImage,
     onUndo,
     onRedo,
+    promptLibraryCollapsed,
+    onExpandPromptLibrary,
     assistantCollapsed,
     onExpandAssistant,
 }: {
@@ -2751,6 +2781,8 @@ function CanvasTopBar({
     onImportImage: () => void;
     onUndo: () => void;
     onRedo: () => void;
+    promptLibraryCollapsed: boolean;
+    onExpandPromptLibrary: () => void;
     assistantCollapsed: boolean;
     onExpandAssistant: () => void;
 }) {
@@ -2797,6 +2829,11 @@ function CanvasTopBar({
         <>
             <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between px-4">
                 <div className="pointer-events-auto flex min-w-0 items-center gap-3">
+                    {promptLibraryCollapsed ? (
+                        <Button type="text" className="!h-9 !rounded-lg !px-2.5 !text-xs !font-medium" style={{ color: theme.node.text }} icon={<BookOpenText className="size-4" />} onClick={onExpandPromptLibrary}>
+                            提示词
+                        </Button>
+                    ) : null}
                     <Dropdown
                         trigger={["click"]}
                         menu={{
