@@ -65,19 +65,15 @@ type psdLayerConfig struct {
 	} `json:"layers"`
 }
 
-type psdChatMessage struct {
+type psdResponseInput struct {
 	Role    string `json:"role"`
 	Content any    `json:"content"`
 }
 
-type psdChatContent struct {
-	Type     string             `json:"type"`
-	Text     string             `json:"text,omitempty"`
-	ImageURL *psdChatContentURL `json:"image_url,omitempty"`
-}
-
-type psdChatContentURL struct {
-	URL string `json:"url"`
+type psdResponseContent struct {
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	ImageURL string `json:"image_url,omitempty"`
 }
 
 func CreatePSDTask(file multipart.File, header *multipart.FileHeader) (model.PSDTask, error) {
@@ -217,77 +213,25 @@ func executePSDTask(ctx context.Context, id string) error {
 	if !ok {
 		return errors.New("任务不存在")
 	}
-	layerConfig, err := generatePSDLayerConfig(ctx, state.sourcePath, state.basename, state.task.Model)
-	if err != nil {
-		return err
-	}
-	configPath := filepath.Join(state.taskDir, "layers.json")
-	if err := os.WriteFile(configPath, layerConfig, 0644); err != nil {
-		return err
-	}
-	pythonPath, pythonPathDir, err := ensurePythonRuntime()
-	if err != nil {
-		return err
-	}
-	scriptPath, err := posterLayerScriptPath()
-	if err != nil {
-		return err
-	}
-	cmd := exec.CommandContext(ctx, pythonPath, scriptPath, "--source", state.sourcePath, "--config", configPath, "--out", state.taskDir, "--basename", state.basename)
-	cmd.Env = append(os.Environ(), "PATH="+pythonPathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("PSD 脚本执行失败：%s", psdCommandError(err, output.String(), pythonPath, scriptPath, configPath, state.taskDir))
-	}
-	return validatePSDOutputs(state.taskDir, state.basename)
+	return newPosterLayerPSDExecutor().Execute(ctx, state.taskDir, state.sourcePath, state.basename, state.task.Model)
 }
 
 func generatePSDLayerConfig(ctx context.Context, sourcePath string, basename string, modelName string) ([]byte, error) {
-	channel, err := SelectModelChannel(modelName)
+	sourceBytes, err := os.ReadFile(sourcePath)
 	if err != nil {
 		return nil, err
 	}
-	sourceBytes, err := os.ReadFile(sourcePath)
+	skillPrompt, err := posterLayerPSDSkillPrompt()
 	if err != nil {
 		return nil, err
 	}
 	mimeType := http.DetectContentType(sourceBytes)
 	width, height := readImageSize(sourceBytes)
 	prompt := psdConfigPrompt(basename, width, height)
-	payload, _ := json.Marshal(map[string]any{
-		"model": modelName,
-		"messages": []psdChatMessage{
-			{Role: "system", Content: "你是 PSD 图层拆解助手，只返回严格 JSON，不要 Markdown，不要解释。"},
-			{
-				Role: "user",
-				Content: []psdChatContent{
-					{Type: "text", Text: prompt},
-					{Type: "image_url", ImageURL: &psdChatContentURL{URL: "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(sourceBytes)}},
-				},
-			},
-		},
-		"reasoning_effort": "high",
-		"response_format":  map[string]string{"type": "json_object"},
+	content, err := requestPSDResponseJSON(ctx, modelName, skillPrompt, []psdResponseContent{
+		{Type: "input_text", Text: prompt},
+		{Type: "input_image", ImageURL: "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(sourceBytes)},
 	})
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, BuildModelChannelURL(channel, "/chat/completions"), bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	request.Header.Set("Authorization", "Bearer "+channel.APIKey)
-	request.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: psdTaskHTTPTimeout}
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, safeMessageError{message: "文本模型请求失败"}
-	}
-	defer response.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(response.Body, 4<<20))
-	if response.StatusCode >= http.StatusBadRequest {
-		return nil, safeMessageError{message: readPSDUpstreamError(body, response.StatusCode)}
-	}
-	content, err := readPSDChatContent(body)
 	if err != nil {
 		return nil, err
 	}
@@ -296,6 +240,41 @@ func generatePSDLayerConfig(ctx context.Context, sourcePath string, basename str
 		return nil, err
 	}
 	return configJSON, nil
+}
+
+func requestPSDResponseJSON(ctx context.Context, modelName string, systemPrompt string, content []psdResponseContent) (string, error) {
+	channel, err := SelectModelChannel(modelName)
+	if err != nil {
+		return "", err
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"model": modelName,
+		"input": []psdResponseInput{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: content},
+		},
+		"reasoning": map[string]string{"effort": "high"},
+		"text": map[string]any{
+			"format": map[string]string{"type": "json_object"},
+		},
+	})
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, BuildModelChannelURL(channel, "/responses"), bytes.NewReader(payload))
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("Authorization", "Bearer "+channel.APIKey)
+	request.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: psdTaskHTTPTimeout}
+	response, err := client.Do(request)
+	if err != nil {
+		return "", safeMessageError{message: "文本模型请求失败"}
+	}
+	defer response.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(response.Body, 4<<20))
+	if response.StatusCode >= http.StatusBadRequest {
+		return "", safeMessageError{message: readPSDUpstreamError(body, response.StatusCode)}
+	}
+	return readPSDResponseContent(body)
 }
 
 func psdConfigPrompt(basename string, width int, height int) string {
@@ -361,13 +340,16 @@ func psdConfigPrompt(basename string, width int, height int) string {
 6. 返回的 JSON 必须能被 Python json.loads 解析。`)
 }
 
-func readPSDChatContent(body []byte) (string, error) {
+func readPSDResponseContent(body []byte) (string, error) {
 	var payload struct {
-		Choices []struct {
-			Message struct {
-				Content any `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
+		OutputText string `json:"output_text"`
+		Output     []struct {
+			Type    string `json:"type"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"output"`
 		Error *struct {
 			Message string `json:"message"`
 		} `json:"error"`
@@ -382,29 +364,24 @@ func readPSDChatContent(body []byte) (string, error) {
 	if strings.TrimSpace(payload.Msg) != "" {
 		return "", safeMessageError{message: payload.Msg}
 	}
-	if len(payload.Choices) == 0 {
-		return "", safeMessageError{message: "文本模型没有返回图层配置"}
+	if strings.TrimSpace(payload.OutputText) != "" {
+		return payload.OutputText, nil
 	}
-	return chatContentString(payload.Choices[0].Message.Content), nil
-}
-
-func chatContentString(value any) string {
-	switch item := value.(type) {
-	case string:
-		return item
-	case []any:
-		parts := []string{}
-		for _, part := range item {
-			if obj, ok := part.(map[string]any); ok {
-				if text, ok := obj["text"].(string); ok {
-					parts = append(parts, text)
-				}
+	parts := []string{}
+	for _, output := range payload.Output {
+		if output.Type != "message" {
+			continue
+		}
+		for _, content := range output.Content {
+			if content.Type == "output_text" && strings.TrimSpace(content.Text) != "" {
+				parts = append(parts, content.Text)
 			}
 		}
-		return strings.Join(parts, "")
-	default:
-		return ""
 	}
+	if len(parts) == 0 {
+		return "", safeMessageError{message: "文本模型没有返回图层配置"}
+	}
+	return strings.Join(parts, ""), nil
 }
 
 func normalizePSDLayerConfig(text string, basename string) ([]byte, error) {
@@ -483,16 +460,24 @@ func defaultPSDTextModel() (string, error) {
 }
 
 func posterLayerScriptPath() (string, error) {
-	candidates := []string{
-		filepath.Join(resourceRoot(), psdSkillPath, psdScriptPath),
-		filepath.Join(projectRoot(), psdSkillPath, psdScriptPath),
+	root, err := posterLayerSkillRoot()
+	if err != nil {
+		return "", err
 	}
-	for _, path := range candidates {
-		if _, err := os.Stat(path); err == nil {
-			return path, nil
+	return filepath.Join(root, psdScriptPath), nil
+}
+
+func posterLayerSkillRoot() (string, error) {
+	candidates := []string{
+		filepath.Join(resourceRoot(), psdSkillPath),
+		filepath.Join(projectRoot(), psdSkillPath),
+	}
+	for _, root := range candidates {
+		if _, err := os.Stat(filepath.Join(root, psdScriptPath)); err == nil {
+			return root, nil
 		}
 	}
-	return "", safeMessageError{message: "未找到 poster-layer-psd 脚本"}
+	return "", safeMessageError{message: "未找到 poster-layer-psd skill"}
 }
 
 func ensurePythonRuntime() (string, string, error) {
