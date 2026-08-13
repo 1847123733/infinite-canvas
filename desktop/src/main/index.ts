@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import { basename, join } from 'path'
-import { spawn } from 'child_process'
+import { spawn, spawnSync } from 'child_process'
 import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs'
 import Store from 'electron-store'
 import portfinder from 'portfinder'
@@ -686,13 +686,20 @@ async function startWebServer() {
 // Stop servers
 function stopServers() {
   serversStarted = false
-  if (apiProcess) {
-    apiProcess.kill()
-    apiProcess = null
-  }
-  if (webProcess) {
-    webProcess.kill()
-    webProcess = null
+  const processes = [apiProcess, webProcess].filter(Boolean)
+  apiProcess = null
+  webProcess = null
+
+  for (const child of processes) {
+    if (!child.pid) continue
+    if (process.platform === 'win32') {
+      spawnSync('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], {
+        stdio: 'ignore',
+        windowsHide: true
+      })
+    } else {
+      child.kill()
+    }
   }
 }
 

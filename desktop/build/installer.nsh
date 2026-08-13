@@ -16,11 +16,7 @@
       !insertmacro FIND_PROCESS "${APP_EXECUTABLE_FILENAME}" $R0
       ${if} $R0 == 0
         ${if} $R1 > 2
-          !ifdef INSTALL_MODE_PER_ALL_USERS
-            nsExec::Exec `taskkill /f /im "${APP_EXECUTABLE_FILENAME}"`
-          !else
-            nsExec::Exec `%SYSTEMROOT%\System32\cmd.exe /c taskkill /f /im "${APP_EXECUTABLE_FILENAME}" /fi "USERNAME eq %USERNAME%"`
-          !endif
+          nsExec::Exec `%SYSTEMROOT%\System32\taskkill.exe /f /t /im "${APP_EXECUTABLE_FILENAME}"`
           Sleep 1500
         ${else}
           Sleep 1500
