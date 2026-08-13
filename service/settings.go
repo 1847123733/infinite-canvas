@@ -274,6 +274,27 @@ func SelectModelChannel(modelName string) (model.ModelChannel, error) {
 	return channels[0], nil
 }
 
+func IsVolcengineArkChannel(baseURL string) bool {
+	baseURL = strings.ToLower(strings.TrimSpace(baseURL))
+	return strings.Contains(baseURL, "ark.cn-beijing.volces.com") || strings.Contains(baseURL, "volcengine.com")
+}
+
+func VolcengineImageSize(size string, quality string) string {
+	if size = strings.TrimSpace(size); size != "" {
+		return size
+	}
+	switch strings.ToLower(strings.TrimSpace(quality)) {
+	case "low", "standard", "1k":
+		return "1K"
+	case "medium", "hd", "2k":
+		return "2K"
+	case "high", "4k":
+		return "4K"
+	default:
+		return ""
+	}
+}
+
 func BuildModelChannelURL(channel model.ModelChannel, path string) string {
 	baseURL := normalizeModelChannelBaseURL(channel.BaseURL)
 	lowerBaseURL := strings.ToLower(baseURL)

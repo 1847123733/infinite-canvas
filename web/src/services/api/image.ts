@@ -192,20 +192,6 @@ function readStatusError(status: number | undefined, fallback: string) {
     return status ? `${fallback}：${status}` : fallback;
 }
 
-function parseStreamChunk(chunk: string, onDelta: (value: string) => void) {
-    let deltaText = "";
-    for (const eventBlock of chunk.split("\n\n")) {
-        const data = eventBlock
-            .split("\n")
-            .find((line) => line.startsWith("data: "))
-            ?.slice(6);
-        if (!data || data === "[DONE]") continue;
-        const delta = (JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> }).choices?.[0]?.delta?.content || "";
-        deltaText += delta;
-    }
-    if (deltaText) onDelta(deltaText);
-}
-
 function withSystemPrompt(config: AiConfig, prompt: string) {
     const systemPrompt = config.systemPrompt.trim();
     return systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
@@ -280,11 +266,6 @@ async function requestDesktopCloudImage(
         },
     });
     return parseImagePayload(response.data);
-}
-
-function withSystemMessage(config: AiConfig, messages: ChatCompletionMessage[]) {
-    const systemPrompt = config.systemPrompt.trim();
-    return systemPrompt ? [{ role: "system" as const, content: systemPrompt }, ...messages] : messages;
 }
 
 export async function requestGeneration(config: AiConfig, prompt: string) {
@@ -381,91 +362,22 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
 }
 
 export async function requestImageQuestion(config: AiConfig, messages: ChatCompletionMessage[], onDelta: (text: string) => void) {
-    let buffer = "";
-    let answer = "";
-    let processedLength = 0;
-
     try {
-        const response = await withRemoteAuthRetry(config, async () => {
-            const result = await axios.post(
-                aiApiUrl(config, "/chat/completions"),
+        const result = await withRemoteAuthRetry(config, () =>
+            requestToolResponseApi(
+                config,
                 {
                     model: config.model,
-                    messages: withSystemMessage(config, messages),
-                    stream: true,
+                    input: toResponseApiInput(config, messages),
                 },
-                {
-                    headers: {
-                        ...(await aiHeaders(config, "application/json")),
-                    } as Record<string, string>,
-                    responseType: "text",
-                    onDownloadProgress: (event) => {
-                        const responseText = String(event.event?.target?.responseText || "");
-                        const nextText = responseText.slice(processedLength);
-                        processedLength = responseText.length;
-                        buffer += nextText;
-                        const chunks = buffer.split("\n\n");
-                        buffer = chunks.pop() || "";
-                        for (const chunk of chunks) {
-                            parseStreamChunk(chunk, (delta) => {
-                                answer += delta;
-                                onDelta(answer);
-                            });
-                        }
-                    },
-                },
-            );
-            if (typeof result.data === "object" && result.data && "code" in result.data && (result.data as { code?: number; msg?: string }).code !== 0) {
-                buffer = "";
-                answer = "";
-                processedLength = 0;
-                throw new Error((result.data as { msg?: string }).msg || "请求失败");
-            }
-            if (typeof result.data === "string") {
-                let apiError = "";
-                try {
-                    const payload = JSON.parse(result.data) as { code?: number; msg?: string };
-                    if (typeof payload.code === "number" && payload.code !== 0) {
-                        apiError = payload.msg || "请求失败";
-                    }
-                } catch {
-                    // ignore plain text stream content
-                }
-                if (apiError) {
-                    buffer = "";
-                    answer = "";
-                    processedLength = 0;
-                    throw new Error(apiError);
-                }
-            }
-            return result;
-        });
-        if (typeof response.data === "object" && response.data && "code" in response.data && (response.data as { code?: number; msg?: string }).code !== 0) {
-            throw new Error((response.data as { msg?: string }).msg || "请求失败");
-        }
-        if (typeof response.data === "string") {
-            let apiError = "";
-            try {
-                const payload = JSON.parse(response.data) as { code?: number; msg?: string };
-                if (typeof payload.code === "number" && payload.code !== 0) {
-                    apiError = payload.msg || "请求失败";
-                }
-            } catch {
-                // ignore plain text stream content
-            }
-            if (apiError) throw new Error(apiError);
-        }
-        if (buffer) {
-            parseStreamChunk(buffer, (delta) => {
-                answer += delta;
-                onDelta(answer);
-            });
-        }
+                onDelta,
+            ),
+        );
+        refreshRemoteUser(config);
+        return result.content || "没有返回内容";
     } catch (error) {
         throw new Error(readAxiosError(error, "请求失败"));
     }
-    refreshRemoteUser(config);
-    return answer || "没有返回内容";
 }
 
 export async function requestToolResponse(

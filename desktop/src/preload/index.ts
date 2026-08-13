@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
   getDeviceId: () => ipcRenderer.invoke('desktop-app-get-device-id'),
   getVersion: () => ipcRenderer.invoke('desktop-app-get-version'),
   getCloudBaseUrl: () => ipcRenderer.invoke('desktop-app-get-cloud-base-url'),
+  runWindowsCleanup: () => ipcRenderer.invoke('desktop-app-run-windows-cleanup'),
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   downloadUpdate: (url: string, expectedTotal?: number) => ipcRenderer.invoke('download-update', url, expectedTotal),
   onUpdateProgress: (callback: (progress: { status: 'downloading' | 'completed' | 'launching' | 'error'; percent: number; downloaded: number; total: number; message?: string }) => void) => {
@@ -69,6 +70,7 @@ declare global {
       getDeviceId: () => Promise<string>
       getVersion: () => Promise<string>
       getCloudBaseUrl: () => Promise<string>
+      runWindowsCleanup: () => Promise<{ success: boolean; cancelled?: boolean; error?: string }>
       checkUpdate: () => Promise<{
         id: number
         version: string

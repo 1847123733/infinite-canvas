@@ -1,5 +1,6 @@
 import localforage from "localforage";
 import type { StateStorage } from "zustand/middleware";
+import { reportStorageError } from "@/services/storage-error";
 
 localforage.config({
     name: "infinite-canvas",
@@ -20,7 +21,11 @@ export const localForageStorage: StateStorage = {
         try {
             await localforage.setItem(name, value);
         } catch {
-            window.localStorage.setItem(name, value);
+            try {
+                window.localStorage.setItem(name, value);
+            } catch (error) {
+                throw reportStorageError(error);
+            }
         }
     },
     removeItem: async (name) => {

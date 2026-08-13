@@ -1,6 +1,6 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useRef, useState } from "react";
-import { Button, Segmented, Switch } from "antd";
+import { Button, Segmented } from "antd";
 import { CircleDot, Eraser, FolderOpen, Grid2x2, Hand, Image as ImageIcon, Info, Library, Moon, Palette, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload } from "lucide-react";
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
@@ -113,6 +113,20 @@ export function CanvasToolbar({
                 >
                     <Palette className="size-4.5" />
                 </ToolbarButton>
+                <ToolbarButton
+                    id="tool-image-info"
+                    label={showImageInfo ? "隐藏图片信息" : "显示图片信息"}
+                    active={showImageInfo}
+                    hovered={hovered}
+                    activeStyle={activeStyle}
+                    hoverStyle={hoverStyle}
+                    wrapRef={wrapRef}
+                    onTipX={setTipX}
+                    onHover={setHovered}
+                    onClick={() => onShowImageInfoChange(!showImageInfo)}
+                >
+                    <Info className="size-4.5" />
+                </ToolbarButton>
                 {selectedCount ? (
                     <>
                         <Divider theme={theme} />
@@ -177,13 +191,6 @@ export function CanvasToolbar({
                             },
                         ]}
                     />
-                    <div className="mt-3 flex items-center justify-between gap-3 rounded-lg px-1.5 py-1">
-                        <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium opacity-65">
-                            <Info className="size-3.5" />
-                            图片信息
-                        </span>
-                        <Switch size="small" checked={showImageInfo} onChange={onShowImageInfoChange} />
-                    </div>
                 </div>
             ) : null}
         </div>
@@ -282,6 +289,7 @@ function toolLabel(id: string) {
     if (id === "tool-library") return "素材库";
     if (id === "tool-assets") return "我的素材";
     if (id === "tool-style") return "画布外观";
+    if (id === "tool-image-info") return "图片信息";
     if (id === "tool-delete") return "删除选中";
     if (id === "tool-clear") return "清空画布";
     return "";

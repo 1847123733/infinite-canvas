@@ -1,10 +1,11 @@
 "use client";
 
-import { ExternalLink, FileUp, ShieldCheck, Wrench } from "lucide-react";
+import { ExternalLink, FileUp, HardDrive, ShieldCheck, Wrench } from "lucide-react";
 import { Button } from "antd";
 import { useState } from "react";
 
 import { MemoryExpander } from "@/app/(user)/tools/components/memory-expander";
+import { WindowsCleanup } from "@/app/(user)/tools/components/windows-cleanup";
 
 const OPENAI_VERIFY_URL = "https://openai.com/zh-Hans-CN/research/verify/";
 const tools = [
@@ -14,6 +15,13 @@ const tools = [
         description: "指定图片大小",
         tag: "本地",
         icon: FileUp,
+    },
+    {
+        id: "windows-cleanup",
+        name: "清理 C 盘",
+        description: "清理 Windows 缓存",
+        tag: "桌面版",
+        icon: HardDrive,
     },
     {
         id: "openai-verify",
@@ -91,7 +99,7 @@ export default function ToolsPage() {
                         </div>
                     </aside>
 
-                    {activeTool === "memory" ? <MemoryExpander /> : <OpenAIVerifyCard />}
+                    {activeTool === "memory" ? <MemoryExpander /> : activeTool === "windows-cleanup" ? <WindowsCleanup /> : <OpenAIVerifyCard />}
                 </div>
             </div>
         </main>

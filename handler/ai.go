@@ -95,6 +95,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		Fail(w, "AI 接口请求失败")
 		return
 	}
+	body = applyVolcengineImageGenerationOptions(body, contentType, path, channel.BaseURL)
 	path = resolveAIProxyPath(channel.BaseURL, modelName, path)
 	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, service.BuildModelChannelURL(channel, path), bytes.NewReader(body))
 	if err != nil {
@@ -118,6 +119,34 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 			log.Printf("AI proxy refund credits failed: user=%s model=%s credits=%d err=%v", user.ID, modelName, credits, err)
 		}
 	})
+}
+
+func applyVolcengineImageGenerationOptions(body []byte, contentType string, path string, baseURL string) []byte {
+	if path != "/images/generations" || strings.HasPrefix(contentType, "multipart/form-data") || !service.IsVolcengineArkChannel(baseURL) {
+		return body
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return body
+	}
+	payload["watermark"] = false
+	if size := service.VolcengineImageSize(stringPayloadValue(payload, "size"), stringPayloadValue(payload, "quality")); size != "" {
+		payload["size"] = size
+	}
+	delete(payload, "quality")
+	updated, err := json.Marshal(payload)
+	if err != nil {
+		return body
+	}
+	return updated
+}
+
+func stringPayloadValue(payload map[string]any, key string) string {
+	value, ok := payload[key].(string)
+	if !ok {
+		return ""
+	}
+	return value
 }
 
 func copyAIResponse(w http.ResponseWriter, request *http.Request, onFailure func()) {

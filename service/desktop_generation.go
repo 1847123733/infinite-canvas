@@ -139,11 +139,20 @@ func requestDesktopProviderGeneration(exchange DesktopCloudExchangeResult) ([]by
 		"response_format": "b64_json",
 		"output_format":   "png",
 	}
-	if value := desktopRequestMetaString(exchange.Task.RequestMeta, "quality"); value != "" {
-		body["quality"] = value
-	}
-	if value := desktopRequestMetaString(exchange.Task.RequestMeta, "size"); value != "" {
-		body["size"] = value
+	quality := desktopRequestMetaString(exchange.Task.RequestMeta, "quality")
+	size := desktopRequestMetaString(exchange.Task.RequestMeta, "size")
+	if IsVolcengineArkChannel(exchange.Model.BaseURL) {
+		body["watermark"] = false
+		if size = VolcengineImageSize(size, quality); size != "" {
+			body["size"] = size
+		}
+	} else {
+		if quality != "" {
+			body["quality"] = quality
+		}
+		if size != "" {
+			body["size"] = size
+		}
 	}
 	data, _ := json.Marshal(body)
 	request, err := http.NewRequest(http.MethodPost, BuildModelChannelURL(model.ModelChannel{BaseURL: exchange.Model.BaseURL}, "/images/generations"), bytes.NewReader(data))

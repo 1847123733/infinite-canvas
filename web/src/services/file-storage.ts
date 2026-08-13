@@ -2,6 +2,7 @@
 
 import localforage from "localforage";
 import { nanoid } from "nanoid";
+import { reportStorageError } from "@/services/storage-error";
 
 export type UploadedFile = { url: string; storageKey: string; bytes: number; mimeType: string; width?: number; height?: number; durationMs?: number };
 
@@ -11,7 +12,11 @@ const objectUrls = new Map<string, string>();
 export async function uploadMediaFile(input: string | Blob, prefix = "file"): Promise<UploadedFile> {
     const blob = typeof input === "string" ? await (await fetch(input)).blob() : input;
     const storageKey = `${prefix}:${nanoid()}`;
-    await store.setItem(storageKey, blob);
+    try {
+        await store.setItem(storageKey, blob);
+    } catch (error) {
+        throw reportStorageError(error);
+    }
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
     const meta = blob.type.startsWith("video/") ? await readVideoMeta(url) : blob.type.startsWith("audio/") ? await readAudioMeta(url) : {};
@@ -34,7 +39,11 @@ export async function getMediaBlob(storageKey: string) {
 }
 
 export async function setMediaBlob(storageKey: string, blob: Blob) {
-    await store.setItem(storageKey, blob);
+    try {
+        await store.setItem(storageKey, blob);
+    } catch (error) {
+        throw reportStorageError(error);
+    }
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
     return url;
@@ -54,10 +63,32 @@ export async function deleteStoredMedia(keys: Iterable<string>) {
 export async function cleanupUnusedMedia(usedData: unknown) {
     const usedKeys = collectMediaStorageKeys(usedData);
     const unused: string[] = [];
-    await store.iterate((_value, key) => {
-        if (!usedKeys.has(key)) unused.push(key);
+    let freedBytes = 0;
+    await store.iterate((value, key) => {
+        if (usedKeys.has(key)) return;
+        unused.push(key);
+        if (value instanceof Blob) freedBytes += value.size;
     });
-    await Promise.all(unused.map((key) => store.removeItem(key)));
+    await deleteStoredMedia(unused);
+    return { deleted: unused.length, freedBytes };
+}
+
+export async function getMediaStorageStats(usedData?: unknown) {
+    const usedKeys = usedData === undefined ? null : collectMediaStorageKeys(usedData);
+    let files = 0;
+    let bytes = 0;
+    let reclaimableFiles = 0;
+    let reclaimableBytes = 0;
+    await store.iterate((value, key) => {
+        const size = value instanceof Blob ? value.size : 0;
+        files += 1;
+        bytes += size;
+        if (usedKeys && !usedKeys.has(key)) {
+            reclaimableFiles += 1;
+            reclaimableBytes += size;
+        }
+    });
+    return { files, bytes, reclaimableFiles, reclaimableBytes };
 }
 
 export function collectMediaStorageKeys(value: unknown, keys = new Set<string>()) {

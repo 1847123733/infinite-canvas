@@ -4,6 +4,7 @@ import localforage from "localforage";
 
 import { nanoid } from "nanoid";
 import { readImageMeta } from "@/lib/image-utils";
+import { reportStorageError } from "@/services/storage-error";
 
 export type UploadedImage = {
     url: string;
@@ -18,9 +19,13 @@ const store = localforage.createInstance({ name: "infinite-canvas", storeName: "
 const objectUrls = new Map<string, string>();
 
 export async function uploadImage(input: string | Blob): Promise<UploadedImage> {
-    const blob = typeof input === "string" ? await (await fetch(input)).blob() : input;
+    const blob = typeof input === "string" ? (input.startsWith("data:") ? dataUrlToBlob(input) : await (await fetch(input)).blob()) : input;
     const storageKey = `image:${nanoid()}`;
-    await store.setItem(storageKey, blob);
+    try {
+        await store.setItem(storageKey, blob);
+    } catch (error) {
+        throw reportStorageError(error);
+    }
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
     const meta = await readImageMeta(url);
@@ -43,7 +48,11 @@ export async function getImageBlob(storageKey: string) {
 }
 
 export async function setImageBlob(storageKey: string, blob: Blob) {
-    await store.setItem(storageKey, blob);
+    try {
+        await store.setItem(storageKey, blob);
+    } catch (error) {
+        throw reportStorageError(error);
+    }
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
     return url;
@@ -69,10 +78,32 @@ export async function deleteStoredImages(keys: Iterable<string>) {
 export async function cleanupUnusedImages(usedData: unknown) {
     const usedKeys = collectImageStorageKeys(usedData);
     const unused: string[] = [];
-    await store.iterate((_value, key) => {
-        if (!usedKeys.has(key)) unused.push(key);
+    let freedBytes = 0;
+    await store.iterate((value, key) => {
+        if (usedKeys.has(key)) return;
+        unused.push(key);
+        if (value instanceof Blob) freedBytes += value.size;
     });
     await deleteStoredImages(unused);
+    return { deleted: unused.length, freedBytes };
+}
+
+export async function getImageStorageStats(usedData?: unknown) {
+    const usedKeys = usedData === undefined ? null : collectImageStorageKeys(usedData);
+    let files = 0;
+    let bytes = 0;
+    let reclaimableFiles = 0;
+    let reclaimableBytes = 0;
+    await store.iterate((value, key) => {
+        const size = value instanceof Blob ? value.size : 0;
+        files += 1;
+        bytes += size;
+        if (usedKeys && !usedKeys.has(key)) {
+            reclaimableFiles += 1;
+            reclaimableBytes += size;
+        }
+    });
+    return { files, bytes, reclaimableFiles, reclaimableBytes };
 }
 
 export function collectImageStorageKeys(value: unknown, keys = new Set<string>()) {
@@ -80,6 +111,15 @@ export function collectImageStorageKeys(value: unknown, keys = new Set<string>()
     if ("storageKey" in value && typeof value.storageKey === "string" && value.storageKey.startsWith("image:")) keys.add(value.storageKey);
     Object.values(value).forEach((item) => (Array.isArray(item) ? item.forEach((child) => collectImageStorageKeys(child, keys)) : collectImageStorageKeys(item, keys)));
     return keys;
+}
+
+function dataUrlToBlob(dataUrl: string) {
+    const [header, content = ""] = dataUrl.split(",", 2);
+    const mimeType = header.match(/^data:([^;]+)/)?.[1] || "application/octet-stream";
+    const binary = atob(content);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return new Blob([bytes], { type: mimeType });
 }
 
 function blobToDataUrl(blob: Blob) {

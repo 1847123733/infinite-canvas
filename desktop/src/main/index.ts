@@ -257,6 +257,78 @@ function getWindowIconPath() {
   return existsSync(devIconPath) ? devIconPath : undefined
 }
 
+function getWindowsCleanupScriptPath() {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'resources', 'tools', '清理C盘.bat')
+    : join(process.cwd(), 'resources', 'tools', '清理C盘.bat')
+}
+
+async function launchWindowsCleanupScript() {
+  if (process.platform !== 'win32') {
+    return { success: false, error: '清理 C 盘工具仅支持 Windows' }
+  }
+
+  const scriptPath = getWindowsCleanupScriptPath()
+  if (!existsSync(scriptPath)) {
+    return { success: false, error: '未找到内置清理脚本' }
+  }
+
+  const escapedScriptPath = scriptPath.replace(/'/g, "''")
+  return await new Promise<{ success: boolean; error?: string }>(resolve => {
+    let settled = false
+    const finish = (result: { success: boolean; error?: string }) => {
+      if (settled) return
+      settled = true
+      resolve(result)
+    }
+    const child = spawn('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-WindowStyle',
+      'Hidden',
+      '-Command',
+      `Start-Process -FilePath $env:ComSpec -ArgumentList '/d /c ""${escapedScriptPath}""' -Verb RunAs`
+    ], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      windowsHide: true
+    })
+
+    child.on('error', error => {
+      console.error('Failed to launch cleanup script:', error)
+      finish({ success: false, error: '启动清理工具失败' })
+    })
+    child.on('close', code => {
+      finish(code === 0
+        ? { success: true }
+        : { success: false, error: '未启动清理工具，请确认已允许管理员权限' })
+    })
+  })
+}
+
+async function confirmAndLaunchWindowsCleanup() {
+  if (process.platform !== 'win32') {
+    return { success: false, error: '清理 C 盘工具仅支持 Windows' }
+  }
+
+  const options = {
+    type: 'warning' as const,
+    title: '确认清理 C 盘',
+    message: '该操作将清空回收站、系统日志、Windows 更新缓存等内容。',
+    detail: '回收站内容无法恢复，系统日志清理后可能影响故障排查。确认继续运行内置清理脚本吗？',
+    buttons: ['继续清理', '取消'],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true
+  }
+  const result = mainWindow
+    ? await dialog.showMessageBox(mainWindow, options)
+    : await dialog.showMessageBox(options)
+  if (result.response !== 0) {
+    return { success: false, cancelled: true }
+  }
+  return launchWindowsCleanupScript()
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, '&amp;')
@@ -644,6 +716,13 @@ function createWindow() {
     }
   })
 
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F12' && !input.isAutoRepeat) {
+      event.preventDefault()
+      mainWindow?.webContents.toggleDevTools()
+    }
+  })
+
   loadStartupPage('正在启动本地服务，请稍候')
 
   // Show window when ready
@@ -783,6 +862,7 @@ ipcMain.handle('desktop-auth-clear-session', () => clearCloudSession())
 ipcMain.handle('desktop-app-get-device-id', () => getDeviceId())
 ipcMain.handle('desktop-app-get-version', () => config.appVersion)
 ipcMain.handle('desktop-app-get-cloud-base-url', () => config.cloudBaseUrl)
+ipcMain.handle('desktop-app-run-windows-cleanup', () => confirmAndLaunchWindowsCleanup())
 ipcMain.handle('check-update', async () => {
   try {
     if (!config.cloudBaseUrl) {
