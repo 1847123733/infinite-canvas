@@ -1,6 +1,6 @@
 {
   "name": "infinite-canvas-desktop",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "无限画布-人工智能驱动的无限画布应用程序",
   "main": "out/main/main.js",
   "author": "王鑫凯",
@@ -72,7 +72,10 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "build/icon.ico",
@@ -82,7 +85,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "build/icon.icns",
