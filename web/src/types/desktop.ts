@@ -11,7 +11,7 @@ declare global {
             getDeviceId: () => Promise<string>;
             getVersion: () => Promise<string>;
             getCloudBaseUrl: () => Promise<string>;
-            runWindowsCleanup: () => Promise<{ success: boolean; cancelled?: boolean; error?: string }>;
+            runWindowsCleanup: () => Promise<{ success: boolean; error?: string }>;
             checkUpdate: () => Promise<{
                 id: number;
                 version: string;

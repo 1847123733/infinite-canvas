@@ -51,9 +51,12 @@ type desktopProviderImagePayload struct {
 		URL     string `json:"url"`
 	} `json:"data"`
 	Error *struct {
+		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
-	Msg string `json:"msg"`
+	Code    any    `json:"code"`
+	Message string `json:"message"`
+	Msg     string `json:"msg"`
 }
 
 func GenerateDesktopCloudImage(authHeader string, input DesktopGenerationInput) (DesktopGenerationResult, error) {
@@ -125,10 +128,47 @@ func requestDesktopProviderImage(exchange DesktopCloudExchangeResult, input Desk
 	if protocol == "grsai" {
 		return requestDesktopGrsaiGeneration(exchange, input)
 	}
+	if IsVolcengineArkChannel(exchange.Model.BaseURL) {
+		return requestDesktopVolcengineGeneration(exchange, input)
+	}
 	if len(input.References) > 0 || input.Mask != nil {
 		return requestDesktopProviderEdit(exchange, input)
 	}
 	return requestDesktopProviderGeneration(exchange)
+}
+
+func requestDesktopVolcengineGeneration(exchange DesktopCloudExchangeResult, input DesktopGenerationInput) ([]byte, string, error) {
+	prompt := exchange.Task.FinalPrompt
+	images := make([]string, 0, len(input.References)+1)
+	for _, item := range input.References {
+		images = append(images, desktopReferenceImageDataURI(item))
+	}
+	if input.Mask != nil {
+		prompt += "\n\nThe last image below is a mask: white areas indicate regions to modify, black areas must be preserved."
+		images = append(images, desktopReferenceImageDataURI(*input.Mask))
+	}
+	body := map[string]any{
+		"model":           exchange.Model.ModelName,
+		"prompt":          prompt,
+		"response_format": "url",
+		"watermark":       false,
+	}
+	if size := VolcengineImageSize(desktopRequestMetaString(exchange.Task.RequestMeta, "size"), desktopRequestMetaString(exchange.Task.RequestMeta, "quality")); size != "" {
+		body["size"] = size
+	}
+	if len(images) == 1 {
+		body["image"] = images[0]
+	} else if len(images) > 1 {
+		body["image"] = images
+	}
+	data, _ := json.Marshal(body)
+	request, err := http.NewRequest(http.MethodPost, BuildModelChannelURL(model.ModelChannel{BaseURL: exchange.Model.BaseURL}, "/images/generations"), bytes.NewReader(data))
+	if err != nil {
+		return nil, "", err
+	}
+	request.Header.Set("Authorization", "Bearer "+exchange.Model.APIKey)
+	request.Header.Set("Content-Type", "application/json")
+	return doDesktopProviderImageRequest(request, exchange.Model.ModelName)
 }
 
 func requestDesktopProviderGeneration(exchange DesktopCloudExchangeResult) ([]byte, string, error) {
@@ -141,18 +181,11 @@ func requestDesktopProviderGeneration(exchange DesktopCloudExchangeResult) ([]by
 	}
 	quality := desktopRequestMetaString(exchange.Task.RequestMeta, "quality")
 	size := desktopRequestMetaString(exchange.Task.RequestMeta, "size")
-	if IsVolcengineArkChannel(exchange.Model.BaseURL) {
-		body["watermark"] = false
-		if size = VolcengineImageSize(size, quality); size != "" {
-			body["size"] = size
-		}
-	} else {
-		if quality != "" {
-			body["quality"] = quality
-		}
-		if size != "" {
-			body["size"] = size
-		}
+	if quality != "" {
+		body["quality"] = quality
+	}
+	if size != "" {
+		body["size"] = size
 	}
 	data, _ := json.Marshal(body)
 	request, err := http.NewRequest(http.MethodPost, BuildModelChannelURL(model.ModelChannel{BaseURL: exchange.Model.BaseURL}, "/images/generations"), bytes.NewReader(data))
@@ -217,7 +250,7 @@ func doDesktopProviderImageRequest(request *http.Request, modelName string) ([]b
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		log.Printf("desktop provider image request failed url=%s model=%s err=%v", request.URL.String(), modelName, err)
-		return nil, "", desktopGenerationError{message: "图片模型请求失败"}
+		return nil, "", desktopGenerationError{message: "图片模型请求失败：" + err.Error()}
 	}
 	defer response.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(response.Body, 16<<20))
@@ -310,7 +343,13 @@ func readDesktopProviderError(body []byte, statusCode int) string {
 	var payload desktopProviderImagePayload
 	if err := json.Unmarshal(body, &payload); err == nil {
 		if payload.Error != nil && strings.TrimSpace(payload.Error.Message) != "" {
+			if code := strings.TrimSpace(payload.Error.Code); code != "" {
+				return code + "：" + payload.Error.Message
+			}
 			return payload.Error.Message
+		}
+		if strings.TrimSpace(payload.Message) != "" {
+			return payload.Message
 		}
 		if strings.TrimSpace(payload.Msg) != "" {
 			return payload.Msg
@@ -322,7 +361,10 @@ func readDesktopProviderError(body []byte, statusCode int) string {
 	if statusCode == http.StatusTooManyRequests {
 		return "图片模型请求被限流或额度不足"
 	}
-	return "图片模型请求失败"
+	if detail := logSnippet(body); detail != "" {
+		return detail
+	}
+	return fmt.Sprintf("图片模型请求失败（HTTP %d）", statusCode)
 }
 
 func fetchDesktopImageURL(rawURL string) ([]byte, string, error) {

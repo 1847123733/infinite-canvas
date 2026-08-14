@@ -44,12 +44,12 @@ func requestDesktopGrsaiGeneration(exchange DesktopCloudExchangeResult, input De
 	prompt := exchange.Task.FinalPrompt
 	images := make([]string, 0, len(input.References)+1)
 	for _, item := range input.References {
-		images = append(images, grsaiImageDataURI(item))
+		images = append(images, desktopReferenceImageDataURI(item))
 	}
 	if input.Mask != nil {
 		// grsai 没有独立蒙版参数,与 Gemini 协议一致:末尾追加蒙版图并用文字说明
 		prompt += "\n\nThe last image below is a mask: white areas indicate regions to modify, black areas must be preserved."
-		images = append(images, grsaiImageDataURI(*input.Mask))
+		images = append(images, desktopReferenceImageDataURI(*input.Mask))
 	}
 	body := grsaiGenerateRequest{
 		Model:     exchange.Model.ModelName,
@@ -207,7 +207,7 @@ func buildDesktopGrsaiURL(baseURL string, path string) string {
 	return strings.TrimRight(base, "/") + path
 }
 
-func grsaiImageDataURI(item DesktopReferenceImage) string {
+func desktopReferenceImageDataURI(item DesktopReferenceImage) string {
 	mimeType := strings.TrimSpace(item.ContentType)
 	if !strings.HasPrefix(mimeType, "image/") {
 		mimeType = detectDesktopImageMIMEType(item.Bytes)

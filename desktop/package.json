@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "无限画布-人工智能驱动的无限画布应用程序",
   "main": "out/main/main.js",
-  "author": "王鑫凯",
+  "author": "decent-橙AI",
   "license": "MIT",
   "private": true,
   "scripts": {

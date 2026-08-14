@@ -16,27 +16,38 @@ const cleanupItems = [
 ];
 
 export function WindowsCleanup() {
-    const { message } = App.useApp();
+    const { message, modal } = App.useApp();
     const [launching, setLaunching] = useState(false);
 
-    const launchCleanup = async () => {
+    const confirmCleanup = () => {
         const runWindowsCleanup = window.desktopApp?.runWindowsCleanup;
         if (!runWindowsCleanup) {
             message.warning("请在 Windows 桌面版中使用此工具");
             return;
         }
 
-        setLaunching(true);
-        try {
-            const result = await runWindowsCleanup();
-            if (result.cancelled) return;
-            if (!result.success) throw new Error(result.error || "启动失败");
-            message.success("清理窗口已启动，请在系统提示中允许管理员权限");
-        } catch (error) {
-            message.error(error instanceof Error ? error.message : "启动清理工具失败");
-        } finally {
-            setLaunching(false);
-        }
+        modal.confirm({
+            title: "确认清理 C 盘",
+            content: "该操作将清空回收站、系统日志、Windows 更新缓存等内容。回收站内容无法恢复，系统日志清理后可能影响故障排查。",
+            okText: "继续清理",
+            cancelText: "取消",
+            okButtonProps: { danger: true },
+            keyboard: false,
+            mask: { closable: false },
+            focusable: { autoFocusButton: null },
+            onOk: async () => {
+                setLaunching(true);
+                try {
+                    const result = await runWindowsCleanup();
+                    if (!result.success) throw new Error(result.error || "启动失败");
+                    message.success("清理窗口已启动，请在系统提示中允许管理员权限");
+                } catch (error) {
+                    message.error(error instanceof Error ? error.message : "启动清理工具失败");
+                } finally {
+                    setLaunching(false);
+                }
+            },
+        });
     };
 
     return (
@@ -77,7 +88,7 @@ export function WindowsCleanup() {
                         <h3 className="mt-4 text-lg font-semibold text-stone-950 dark:text-stone-100">内置批处理</h3>
                         <p className="mt-2 text-sm leading-6 text-stone-500 dark:text-stone-400">启动后 Windows 会显示用户账户控制提示。允许后将打开命令窗口并逐项显示清理进度。</p>
                     </div>
-                    <Button danger type="primary" size="large" loading={launching} onClick={launchCleanup}>开始清理</Button>
+                    <Button danger type="primary" size="large" loading={launching} onClick={confirmCleanup}>开始清理</Button>
                 </aside>
             </div>
         </section>
