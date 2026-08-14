@@ -8,6 +8,7 @@ import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
+import { isDoubaoImageModel, resolveDoubaoImageSize } from "@/lib/doubao-image";
 import { imageToDataUrl } from "@/services/image-storage";
 import type { ReferenceImage } from "@/types/image";
 
@@ -270,8 +271,9 @@ async function requestDesktopCloudImage(
 
 export async function requestGeneration(config: AiConfig, prompt: string) {
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
-    const quality = normalizeQuality(config.quality);
-    const requestSize = resolveRequestSize(quality, config.size);
+    const isDoubao = isDoubaoImageModel(config.model);
+    const quality = isDoubao ? undefined : normalizeQuality(config.quality);
+    const requestSize = isDoubao ? resolveDoubaoImageSize(config.imageResolution, config.size) : resolveRequestSize(quality, config.size);
     try {
         if (shouldUseDesktopCloudTicketFlow(config)) {
             const images = await requestDesktopCloudImage(config, prompt, withSystemPrompt(config, prompt), [], {
@@ -308,8 +310,9 @@ export async function requestGeneration(config: AiConfig, prompt: string) {
 
 export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], mask?: ReferenceImage) {
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
-    const quality = normalizeQuality(config.quality);
-    const requestSize = resolveRequestSize(quality, config.size);
+    const isDoubao = isDoubaoImageModel(config.model);
+    const quality = isDoubao ? undefined : normalizeQuality(config.quality);
+    const requestSize = isDoubao ? resolveDoubaoImageSize(config.imageResolution, config.size) : resolveRequestSize(quality, config.size);
     const requestPrompt = buildImageReferencePromptText(prompt, references);
     const finalPrompt = withSystemPrompt(config, requestPrompt);
     if (shouldUseDesktopCloudTicketFlow(config)) {

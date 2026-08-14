@@ -35,6 +35,7 @@ export type AiConfig = {
     audioModels: string[];
     quality: string;
     size: string;
+    imageResolution: string;
     count: string;
     canvasImageCount: string;
 };
@@ -78,6 +79,7 @@ export const defaultConfig: AiConfig = {
     audioModels: [],
     quality: "auto",
     size: "1:1",
+    imageResolution: "2k",
     count: "1",
     canvasImageCount: "3",
 };
