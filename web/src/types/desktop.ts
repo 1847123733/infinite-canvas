@@ -12,6 +12,7 @@ declare global {
             getVersion: () => Promise<string>;
             getCloudBaseUrl: () => Promise<string>;
             runWindowsCleanup: () => Promise<{ success: boolean; error?: string }>;
+            saveFile: (input: { fileName: string; data: ArrayBuffer; extension: string; description: string }) => Promise<{ success: boolean; canceled?: boolean; path?: string; error?: string }>;
             checkUpdate: () => Promise<{
                 id: number;
                 version: string;

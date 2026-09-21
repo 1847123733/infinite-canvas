@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
   getVersion: () => ipcRenderer.invoke('desktop-app-get-version'),
   getCloudBaseUrl: () => ipcRenderer.invoke('desktop-app-get-cloud-base-url'),
   runWindowsCleanup: () => ipcRenderer.invoke('desktop-app-run-windows-cleanup'),
+  saveFile: (input: { fileName: string; data: ArrayBuffer; extension: string; description: string }) => ipcRenderer.invoke('desktop-app-save-file', input),
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   downloadUpdate: (url: string, expectedTotal?: number) => ipcRenderer.invoke('download-update', url, expectedTotal),
   onUpdateProgress: (callback: (progress: { status: 'downloading' | 'completed' | 'launching' | 'error'; percent: number; downloaded: number; total: number; message?: string }) => void) => {
@@ -71,6 +72,7 @@ declare global {
       getVersion: () => Promise<string>
       getCloudBaseUrl: () => Promise<string>
       runWindowsCleanup: () => Promise<{ success: boolean; error?: string }>
+      saveFile: (input: { fileName: string; data: ArrayBuffer; extension: string; description: string }) => Promise<{ success: boolean; canceled?: boolean; path?: string; error?: string }>
       checkUpdate: () => Promise<{
         id: number
         version: string

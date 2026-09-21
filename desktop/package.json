@@ -34,8 +34,8 @@
   },
   "build": {
     "appId": "com.infinitecanvas1.app",
-    "productName": "Infinite Canvas",
-    "executableName": "Infinite Canvas",
+    "productName": "橙AI-无限画布",
+    "executableName": "橙AI-无限画布",
     "directories": {
       "output": "dist-electron"
     },
@@ -79,7 +79,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "InfiniteCanvasSetup_${version}.${ext}"
+      "artifactName": "橙AI-无限画布Setup_${version}.${ext}"
     },
     "mac": {
       "target": [

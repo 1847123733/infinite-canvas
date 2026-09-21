@@ -7,7 +7,7 @@ import "./globals.css";
 import React from "react";
 
 export const metadata: Metadata = {
-    title: "无限画布",
+    title: "橙AI-无限画布",
     description: "一个无限画布创作工具",
 };
 

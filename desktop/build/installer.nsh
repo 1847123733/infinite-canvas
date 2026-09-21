@@ -34,3 +34,9 @@
       ${endIf}
   ${endIf}
 !macroend
+
+!macro customInit
+  # productName 已改为 "橙AI-无限画布"，electron-builder 会自动把安装目录名退回 sanitized 包名。
+  # 这里固定回原来的 ASCII 目录名，保持升级时覆盖到同一目录、不残留旧目录。
+  StrCpy $INSTDIR "$LocalAppData\Programs\Infinite Canvas"
+!macroend

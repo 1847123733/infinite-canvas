@@ -63,9 +63,9 @@ export default function AdminLayoutClient({ children }: { children: ReactNode })
         <Layout hasSider style={{ height: "100vh", overflow: "hidden", background: antToken.colorBgLayout }}>
             <Layout.Sider width={adminLayoutStyle.siderWidth} style={{ height: "100vh", overflow: "hidden", background: antToken.colorBgContainer, borderRight: `1px solid ${antToken.colorBorder}` }}>
                 <Flex align="center" gap={12} style={{ height: adminLayoutStyle.brandHeight, padding: "0 20px", borderBottom: `1px solid ${antToken.colorBorderSecondary}` }}>
-                    <img src="/logo.svg" alt="无限画布" width={30} height={30} style={{ display: "block", objectFit: "contain" }} />
+                    <img src="/logo.svg" alt="橙AI-无限画布" width={30} height={30} style={{ display: "block", objectFit: "contain" }} />
                     <Typography.Text strong style={{ fontSize: 18, letterSpacing: 0 }}>
-                        无限画布
+                        橙AI-无限画布
                     </Typography.Text>
                 </Flex>
                 <Menu

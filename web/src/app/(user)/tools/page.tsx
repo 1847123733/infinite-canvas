@@ -1,10 +1,12 @@
 "use client";
 
-import { ExternalLink, FileUp, HardDrive, ShieldCheck, Wrench } from "lucide-react";
+import { AppWindow, ExternalLink, FileCode2, FileUp, HardDrive, ShieldCheck, Wrench } from "lucide-react";
 import { Button } from "antd";
 import { useState } from "react";
 
 import { MemoryExpander } from "@/app/(user)/tools/components/memory-expander";
+import { ImageToIco } from "@/app/(user)/tools/components/image-to-ico";
+import { PngToSvg } from "@/app/(user)/tools/components/png-to-svg";
 import { WindowsCleanup } from "@/app/(user)/tools/components/windows-cleanup";
 
 const OPENAI_VERIFY_URL = "https://openai.com/zh-Hans-CN/research/verify/";
@@ -15,6 +17,20 @@ const tools = [
         description: "指定图片大小",
         tag: "本地",
         icon: FileUp,
+    },
+    {
+        id: "png-to-svg",
+        name: "PNG 转 SVG",
+        description: "保真转换 SVG",
+        tag: "本地",
+        icon: FileCode2,
+    },
+    {
+        id: "image-to-ico",
+        name: "图片转 ICO",
+        description: "生成多尺寸图标",
+        tag: "本地",
+        icon: AppWindow,
     },
     {
         id: "windows-cleanup",
@@ -99,7 +115,17 @@ export default function ToolsPage() {
                         </div>
                     </aside>
 
-                    {activeTool === "memory" ? <MemoryExpander /> : activeTool === "windows-cleanup" ? <WindowsCleanup /> : <OpenAIVerifyCard />}
+                    {activeTool === "memory" ? (
+                        <MemoryExpander />
+                    ) : activeTool === "png-to-svg" ? (
+                        <PngToSvg />
+                    ) : activeTool === "image-to-ico" ? (
+                        <ImageToIco />
+                    ) : activeTool === "windows-cleanup" ? (
+                        <WindowsCleanup />
+                    ) : (
+                        <OpenAIVerifyCard />
+                    )}
                 </div>
             </div>
         </main>

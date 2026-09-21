@@ -1,8 +1,8 @@
 # Electron Builder Configuration
 
 appId: com.infinitecanvas1.app
-productName: Infinite Canvas
-executableName: Infinite Canvas
+productName: 橙AI-无限画布
+executableName: 橙AI-无限画布
 copyright: Copyright © 2024 wangxk
 
 directories:

@@ -10,7 +10,7 @@ import { getDeviceId } from './device-id'
 // Guard: ELECTRON_RUN_AS_NODE breaks Electron's module system
 // (commonly set by VS Code's integrated terminal)
 if (process.env.ELECTRON_RUN_AS_NODE) {
-  console.warn('[Infinite Canvas] ELECTRON_RUN_AS_NODE is set, clearing it to ensure Electron works properly')
+  console.warn('[橙AI-无限画布] ELECTRON_RUN_AS_NODE is set, clearing it to ensure Electron works properly')
   delete process.env.ELECTRON_RUN_AS_NODE
 }
 
@@ -44,10 +44,10 @@ function loadEnvFromResources() {
           process.env[key] = value
         }
       }
-      console.log(`[Infinite Canvas] Loaded env from ${envPath}`)
+      console.log(`[橙AI-无限画布] Loaded env from ${envPath}`)
       return
     } catch (err) {
-      console.warn('[Infinite Canvas] Failed to load env:', err)
+      console.warn('[橙AI-无限画布] Failed to load env:', err)
     }
   }
 }
@@ -71,7 +71,7 @@ let config = {
   webHost: process.env.WEB_HOST || '127.0.0.1',
   webPort: parseInt(process.env.WEB_PORT || '3000'),
   cloudBaseUrl: (process.env.INFINITE_CANVAS_CLOUD_BASE_URL || '').trim(),
-  appName: process.env.APP_NAME || 'Infinite Canvas',
+  appName: process.env.APP_NAME || '橙AI-无限画布',
   appVersion: app.getVersion()
 }
 
@@ -119,7 +119,7 @@ function getUpdateDownloadDirectory() {
 
 function getUpdateFilePath(downloadUrl: string) {
   const pathname = new URL(downloadUrl).pathname
-  const originalName = basename(pathname) || 'Infinite Canvas Setup.exe'
+  const originalName = basename(pathname) || '橙AI-无限画布 Setup.exe'
   const safeName = decodeURIComponent(originalName).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
   const fileName = safeName.toLowerCase().endsWith('.exe') ? safeName : `${safeName}.exe`
   return join(getUpdateDownloadDirectory(), fileName)
@@ -226,7 +226,8 @@ function launchWindowsInstaller(installerPath: string) {
     '  file.Close',
     'End Sub'
   ].join('\r\n')
-  writeFileSync(helperPath, helperScript, 'utf-8')
+  // VBScript 文件必须带 BOM 的 UTF-16 LE，否则含中文路径时 wscript 按 ANSI 读取会乱码，导致更新安装器启动失败
+  writeFileSync(helperPath, '﻿' + helperScript, 'utf16le')
 
   const helper = spawn('wscript.exe', [
     helperPath
@@ -320,7 +321,7 @@ function getStartupHtml(message: string, isError = false) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Infinite Canvas</title>
+  <title>橙AI-无限画布</title>
   <style>
     :root {
       color-scheme: light;
@@ -405,7 +406,7 @@ function getStartupHtml(message: string, isError = false) {
   <main>
     <div class="mark"><div class="spinner"></div></div>
     <section>
-      <h1>Infinite Canvas</h1>
+      <h1>橙AI-无限画布</h1>
       <p>${safeMessage}</p>
     </section>
     <div class="bar"></div>
@@ -846,6 +847,24 @@ ipcMain.handle('desktop-app-get-device-id', () => getDeviceId())
 ipcMain.handle('desktop-app-get-version', () => config.appVersion)
 ipcMain.handle('desktop-app-get-cloud-base-url', () => config.cloudBaseUrl)
 ipcMain.handle('desktop-app-run-windows-cleanup', () => launchWindowsCleanupScript())
+ipcMain.handle('desktop-app-save-file', async (_, input: { fileName: string; data: ArrayBuffer; extension: string; description: string }) => {
+  try {
+    const extension = input.extension.replace(/[^a-z0-9]/gi, '').toLowerCase()
+    if (!extension || !input.data || input.data.byteLength === 0 || input.data.byteLength > 100 * 1024 * 1024) {
+      return { success: false, error: '文件数据无效' }
+    }
+    const options = {
+      defaultPath: basename(input.fileName),
+      filters: [{ name: input.description || '文件', extensions: [extension] }]
+    }
+    const result = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options)
+    if (result.canceled || !result.filePath) return { success: false, canceled: true }
+    writeFileSync(result.filePath, Buffer.from(input.data))
+    return { success: true, path: result.filePath }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : '保存文件失败' }
+  }
+})
 ipcMain.handle('check-update', async () => {
   try {
     if (!config.cloudBaseUrl) {
