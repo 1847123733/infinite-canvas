@@ -6,6 +6,7 @@ import { persist } from "zustand/middleware";
 
 import type { AdminPublicSettings, ModelCapability } from "@/services/api/admin";
 import { fetchCloudPublicSettings, fetchPublicSettings, syncDesktopCloudPublicSettings } from "@/services/api/settings";
+import { loadPublicSettingsForSession } from "@/stores/public-settings-loader";
 import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
 
 export type AiConfig = {
@@ -196,7 +197,11 @@ async function desktopCloudSettingsSource() {
 
 async function loadCurrentPublicSettings() {
     const cloud = await desktopCloudSettingsSource();
-    return cloud ? fetchCloudPublicSettings(cloud.baseUrl, cloud.token) : fetchPublicSettings();
+    return loadPublicSettingsForSession(cloud, typeof window !== "undefined" && Boolean(window.desktopApp), {
+        loadLocal: fetchPublicSettings,
+        loadCloud: fetchCloudPublicSettings,
+        syncDesktop: syncDesktopCloudPublicSettings,
+    });
 }
 
 async function syncCurrentPublicSettings() {

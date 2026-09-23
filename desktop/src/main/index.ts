@@ -214,7 +214,7 @@ function launchWindowsInstaller(installerPath: string) {
     '  WScript.Sleep 1000',
     '  retries = retries + 1',
     'Loop',
-    'WriteLog "launching installer """" & target & """""',
+    'WriteLog "launching installer: " & target',
     'shell.Run Chr(34) & target & Chr(34), 1, False',
     'WriteLog "run command finished with err " & Err.Number',
     'fso.DeleteFile WScript.ScriptFullName, True',
