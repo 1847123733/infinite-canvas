@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import { Canvas } from "fabric";
+import { Canvas, IText } from "fabric";
 import { App } from "antd";
 import { restoreArtboardScene, serializeArtboardScene, syncArtboardImages, type ArtboardImageSource } from "../utils/canvas-artboard-data";
 import type { CanvasArtboardData } from "../types";
@@ -41,6 +41,10 @@ export function useArtboardEditor(element: RefObject<HTMLCanvasElement | null>, 
     useEffect(() => {
         if (!element.current) return;
         const instance = new Canvas(element.current, { preserveObjectStacking: true, selection: true, enableRetinaScaling: true });
+        instance.on("object:added", ({ target }) => {
+            // 将文字输入框留在编辑区域内，避免弹窗焦点限制阻止输入。
+            if (target instanceof IText) target.hiddenTextareaContainer = instance.wrapperEl;
+        });
         setCanvas(instance);
         return () => {
             paused.current = true;

@@ -126,6 +126,8 @@ function ArtboardSurface({ data, sources, onChange, onActivate }: { data: Canvas
             onPointerDown={(event) => {
                 event.stopPropagation();
                 onActivate();
+                const activeText = canvas?.getActiveObject();
+                if (activeText instanceof IText && activeText.isEditing) return;
                 if (!(event.target as Element).closest("button,input,textarea,.ant-color-picker-trigger")) root.current?.focus({ preventScroll: true });
             }}
             onWheel={(event) => event.stopPropagation()}
