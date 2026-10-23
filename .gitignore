@@ -1,6 +1,7 @@
 .next/
 out/
 node_modules/
+web/public/background-removal/
 !.env.example
 data/
 *.log

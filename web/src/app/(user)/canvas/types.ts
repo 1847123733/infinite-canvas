@@ -15,7 +15,24 @@ export enum CanvasNodeType {
     Config = "config",
     Video = "video",
     Audio = "audio",
+    Artboard = "artboard",
 }
+
+export type CanvasArtboardObject = Record<string, unknown> & {
+    type: string;
+    storageKey?: string;
+    sourceNodeId?: string;
+    src?: string;
+    objects?: CanvasArtboardObject[];
+};
+
+export type CanvasArtboardData = {
+    width: number;
+    height: number;
+    background: string;
+    scene: { objects: CanvasArtboardObject[]; version?: string };
+    importedSources: string[];
+};
 
 export type CanvasNodeStatus = "idle" | "success" | "loading" | "error";
 export type CanvasGenerationMode = "text" | "image" | "video" | "audio";
@@ -57,6 +74,7 @@ export type CanvasNodeMetadata = {
     mimeType?: string;
     bytes?: number;
     durationMs?: number;
+    artboard?: CanvasArtboardData;
 };
 
 export type CanvasNodeData = {

@@ -3,12 +3,15 @@ import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import { seedanceReferenceLabel } from "@/lib/seedance-video";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
-import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../types";
+import { CanvasNodeType, type CanvasArtboardData, type CanvasConnection, type CanvasNodeData } from "../types";
+import type { ArtboardImageSource } from "../utils/canvas-artboard-data";
 import { getGenerationResourceNodes } from "../utils/canvas-resource-references";
+
+type CanvasReferenceImage = ReferenceImage & { artboard?: { data: CanvasArtboardData; sources: ArtboardImageSource[] } };
 
 export type NodeGenerationContext = {
     prompt: string;
-    referenceImages: ReferenceImage[];
+    referenceImages: CanvasReferenceImage[];
     referenceVideos: ReferenceVideo[];
     referenceAudios: ReferenceAudio[];
     textCount: number;
@@ -22,7 +25,7 @@ export type NodeGenerationInput = {
     type: "text" | "image" | "video" | "audio";
     title: string;
     text?: string;
-    image?: ReferenceImage;
+    image?: CanvasReferenceImage;
     video?: ReferenceVideo;
     audio?: ReferenceAudio;
 };
@@ -38,7 +41,7 @@ export function buildNodeGenerationContext(nodeId: string, nodes: CanvasNodeData
         .map((input) => input.text)
         .filter(Boolean)
         .join("\n\n");
-    const referenceImages = inputs.map((input) => input.image).filter((image): image is ReferenceImage => Boolean(image));
+    const referenceImages = inputs.map((input) => input.image).filter((image): image is CanvasReferenceImage => Boolean(image));
     const referenceVideos = inputs.map((input) => input.video).filter((video): video is ReferenceVideo => Boolean(video));
     const referenceAudios = inputs.map((input) => input.audio).filter((audio): audio is ReferenceAudio => Boolean(audio));
 
@@ -84,7 +87,7 @@ function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: s
 
     nextPrompt += prompt.slice(lastIndex);
     if (textBlocks.length) nextPrompt = `${nextPrompt.trim()}\n\n${textBlocks.join("\n\n")}`;
-    const referenceImages = selectedInputs.map((input) => input.image).filter((image): image is ReferenceImage => Boolean(image));
+    const referenceImages = selectedInputs.map((input) => input.image).filter((image): image is CanvasReferenceImage => Boolean(image));
     const referenceVideos = selectedInputs.map((input) => input.video).filter((video): video is ReferenceVideo => Boolean(video));
     const referenceAudios = selectedInputs.map((input) => input.audio).filter((audio): audio is ReferenceAudio => Boolean(audio));
 
@@ -114,8 +117,10 @@ function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: s
 }
 
 export function buildNodeGenerationInputs(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]): NodeGenerationInput[] {
-    return getGenerationResourceNodes(nodeId, nodes, connections).flatMap((node): NodeGenerationInput[] => {
-        const image = readReferenceImage(node);
+    const target = nodes.find((node) => node.id === nodeId);
+    const resources = target?.type === CanvasNodeType.Artboard ? [target] : getGenerationResourceNodes(nodeId, nodes, connections);
+    return resources.flatMap((node): NodeGenerationInput[] => {
+        const image = readReferenceImage(node, nodes, connections);
         if (image) return [{ nodeId: node.id, type: "image" as const, title: node.title, image }];
         const video = readReferenceVideo(node);
         if (video) return [{ nodeId: node.id, type: "video" as const, title: node.title, video }];
@@ -141,8 +146,18 @@ export function buildNodeChatMessages(context: NodeGenerationContext): ChatCompl
 }
 
 export async function hydrateNodeGenerationContext(context: NodeGenerationContext) {
-    const { imageToDataUrl } = await import("@/services/image-storage");
-    return { ...context, referenceImages: await Promise.all(context.referenceImages.map(async (image) => ({ ...image, dataUrl: await imageToDataUrl(image) }))) };
+    const { imageToDataUrl, uploadImage } = await import("@/services/image-storage");
+    const referenceImages = await Promise.all(
+        context.referenceImages.map(async ({ artboard, ...image }) => {
+            if (artboard) {
+                const { renderArtboardImage } = await import("../utils/canvas-artboard-render");
+                const snapshot = await uploadImage(await renderArtboardImage(artboard.data, artboard.sources));
+                image = { ...image, dataUrl: snapshot.url, storageKey: snapshot.storageKey };
+            }
+            return { ...image, dataUrl: await imageToDataUrl(image) };
+        }),
+    );
+    return { ...context, referenceImages };
 }
 
 function readNodeTextInput(node: CanvasNodeData) {
@@ -157,7 +172,15 @@ function generationLabel(type: NodeGenerationInput["type"], index: number) {
     return `文本${index + 1}`;
 }
 
-function readReferenceImage(node: CanvasNodeData): ReferenceImage | null {
+function readReferenceImage(node: CanvasNodeData, nodes: CanvasNodeData[], connections: CanvasConnection[]): CanvasReferenceImage | null {
+    if (node.type === CanvasNodeType.Artboard && node.metadata?.artboard) {
+        const sources = connections.flatMap((connection): ArtboardImageSource[] => {
+            if (connection.toNodeId !== node.id) return [];
+            const source = nodes.find((item) => item.id === connection.fromNodeId);
+            return source?.type === CanvasNodeType.Image && source.metadata?.content ? [{ id: source.id, url: source.metadata.content, storageKey: source.metadata.storageKey }] : [];
+        });
+        return { id: node.id, name: `${node.title || "自定义画布"}.png`, type: "image/png", dataUrl: "", artboard: { data: node.metadata.artboard, sources } };
+    }
     if (node.type !== CanvasNodeType.Image || !node.metadata?.content) return null;
     return {
         id: node.id,
