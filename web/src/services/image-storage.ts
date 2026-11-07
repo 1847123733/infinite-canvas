@@ -4,6 +4,7 @@ import localforage from "localforage";
 
 import { nanoid } from "nanoid";
 import { readImageMeta } from "@/lib/image-utils";
+import { normalizeImageBlob } from "@/lib/image-format";
 import { reportStorageError } from "@/services/storage-error";
 
 export type UploadedImage = {
@@ -19,7 +20,7 @@ const store = localforage.createInstance({ name: "infinite-canvas", storeName: "
 const objectUrls = new Map<string, string>();
 
 export async function uploadImage(input: string | Blob): Promise<UploadedImage> {
-    const blob = typeof input === "string" ? (input.startsWith("data:") ? dataUrlToBlob(input) : await (await fetch(input)).blob()) : input;
+    const blob = await normalizeImageBlob(typeof input === "string" ? (input.startsWith("data:") ? dataUrlToBlob(input) : await (await fetch(input)).blob()) : input);
     const storageKey = `image:${nanoid()}`;
     try {
         await store.setItem(storageKey, blob);

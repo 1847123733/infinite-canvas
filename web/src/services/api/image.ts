@@ -7,6 +7,7 @@ import { buildApiUrl, type AiConfig } from "@/stores/use-config-store";
 import { useCloudAuthStore } from "@/stores/use-cloud-auth-store";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
+import { base64ImageDataUrl } from "@/lib/image-format";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
 import { isDoubaoImageModel, resolveDoubaoImageSize } from "@/lib/doubao-image";
 import { imageToDataUrl } from "@/services/image-storage";
@@ -154,7 +155,7 @@ function resolveRequestSize(quality: string | undefined, size: string) {
 
 function resolveImageDataUrl(item: Record<string, unknown>) {
     if (typeof item.b64_json === "string" && item.b64_json) {
-        return `data:image/png;base64,${item.b64_json}`;
+        return base64ImageDataUrl(item.b64_json);
     }
     if (typeof item.url === "string" && item.url) {
         return item.url;

@@ -9,14 +9,7 @@ const outputDir = resolve(webDir, "public", BACKGROUND_REMOVAL_PUBLIC_PATH.slice
 const dataDir = resolve(outputDir, "data");
 const packageDir = resolve(webDir, "node_modules/@imgly/background-removal");
 const cdn = `https://staticimgly.com/@imgly/background-removal-data/${BACKGROUND_REMOVAL_VERSION}/dist/`;
-const resourceKeys = [
-    "/models/isnet_fp16",
-    "/models/isnet_quint8",
-    "/onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm",
-    "/onnxruntime-web/ort-wasm-simd-threaded.jsep.mjs",
-    "/onnxruntime-web/ort-wasm-simd-threaded.wasm",
-    "/onnxruntime-web/ort-wasm-simd-threaded.mjs",
-];
+const resourceKeys = ["/models/isnet_fp16", "/onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm", "/onnxruntime-web/ort-wasm-simd-threaded.jsep.mjs", "/onnxruntime-web/ort-wasm-simd-threaded.wasm", "/onnxruntime-web/ort-wasm-simd-threaded.mjs"];
 
 async function download(name) {
     const response = await fetch(new URL(name, cdn), { signal: AbortSignal.timeout(120_000) });
@@ -82,6 +75,20 @@ const result = await Bun.build({
     splitting: true,
     minify: true,
     naming: { entry: "[name].js", chunk: "[name]-[hash].js" },
+    plugins: [
+        {
+            name: "clamp-background-removal-alpha",
+            setup(build) {
+                build.onLoad({ filter: /@imgly[\\/]background-removal[\\/]dist[\\/]index\.mjs$/ }, async ({ path }) => {
+                    const source = await readFile(path, "utf8");
+                    // 1.7.0 直接写入 Uint8Array，越界透明度会回绕，造成主体破洞和背景杂点。
+                    const original = "const uint8Array = new Uint8Array(float32Array.data.length);";
+                    if (!source.includes(original)) throw new Error("抠图库透明度补丁未匹配，请检查固定版本的转换实现");
+                    return { contents: source.replace(original, "const uint8Array = new Uint8ClampedArray(float32Array.data.length);"), loader: "js" };
+                });
+            },
+        },
+    ],
 });
 if (!result.success) throw new AggregateError(result.logs, "准备抠图 Worker 失败");
 console.log("离线抠图资源已就绪");

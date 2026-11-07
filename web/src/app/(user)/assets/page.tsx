@@ -7,6 +7,7 @@ import { App, Button, Card, Drawer, Empty, Form, Image, Input, Modal, Pagination
 import { saveAs } from "file-saver";
 
 import { useCopyText } from "@/hooks/use-copy-text";
+import { useDownloadImage } from "@/hooks/use-download-image";
 import { formatBytes, readFileAsDataUrl } from "@/lib/image-utils";
 import { getImageBlob, resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { createPSDTask } from "@/services/api/psd";
@@ -38,6 +39,7 @@ export default function AssetsPage() {
     const { message } = App.useApp();
     const router = useRouter();
     const copyText = useCopyText();
+    const downloadImageFile = useDownloadImage();
     const [form] = Form.useForm<AssetFormValues>();
     const coverInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -157,7 +159,8 @@ export default function AssetsPage() {
 
     const downloadImage = (asset: Asset) => {
         if (asset.kind !== "image" && asset.kind !== "video") return;
-        saveAs(asset.kind === "video" ? asset.data.url : asset.data.dataUrl, `${asset.title || "asset"}.${asset.data.mimeType.split("/")[1] || "png"}`);
+        if (asset.kind === "image") return downloadImageFile(asset.data.dataUrl, asset.title || "asset");
+        saveAs(asset.data.url, `${asset.title || "asset"}.${asset.data.mimeType.split("/")[1] || "png"}`);
     };
 
     const generatePSD = async (asset: Asset) => {

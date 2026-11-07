@@ -30,6 +30,7 @@
         "file-saver": "^2.0.5",
         "localforage": "^1.10.0",
         "lucide-react": "^1.16.0",
+        "magic-bytes.js": "1.13.1",
         "motion": "^12.38.0",
         "nanoid": "^5.1.11",
         "next": "16.2.3",
