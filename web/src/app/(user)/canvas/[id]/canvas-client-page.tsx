@@ -1667,11 +1667,10 @@ function InfiniteCanvasPage() {
             },
         ]);
         if (node) setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
-        setSelectedNodeIds(new Set([childId]));
-        setSelectedConnectionId(null);
-        setDialogNodeId(null);
+        setSelectedNodeIds((prev) => (prev.size === 1 && prev.has(source.id) ? new Set([childId]) : prev));
+        setDialogNodeId((current) => (current === source.id ? null : current));
     }, []);
-    const { removeBackground, busy: backgroundRemovalBusy } = useCanvasBackgroundRemoval(projectId, addBackgroundRemovedNode);
+    const { removeBackground, statuses: backgroundRemovalStatuses } = useCanvasBackgroundRemoval(projectId, addBackgroundRemovedNode);
 
     const cropImageNode = useCallback(async (node: CanvasNodeData, crop: CanvasImageCropRect) => {
         if (!node.metadata?.content) return;
@@ -2889,7 +2888,7 @@ function InfiniteCanvasPage() {
                     onSaveAsset={(node) => void saveNodeAsset(node)}
                     onMaskEdit={(node) => setMaskEditNodeId(node.id)}
                     onRemoveBackground={(node) => void removeBackground(node)}
-                    backgroundRemovalBusy={backgroundRemovalBusy}
+                    backgroundRemovalStatus={toolbarNode ? backgroundRemovalStatuses[toolbarNode.id] : undefined}
                     onCrop={(node) => setCropNodeId(node.id)}
                     onSplit={(node) => setSplitNodeId(node.id)}
                     onUpscale={(node) => setUpscaleNodeId(node.id)}

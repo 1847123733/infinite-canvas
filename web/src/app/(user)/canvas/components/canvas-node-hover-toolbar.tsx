@@ -29,7 +29,7 @@ type CanvasNodeHoverToolbarProps = {
     onSaveAsset: (node: CanvasNodeData) => void;
     onMaskEdit: (node: CanvasNodeData) => void;
     onRemoveBackground: (node: CanvasNodeData) => void;
-    backgroundRemovalBusy: boolean;
+    backgroundRemovalStatus?: "queued" | "processing";
     onCrop: (node: CanvasNodeData) => void;
     onSplit: (node: CanvasNodeData) => void;
     onUpscale: (node: CanvasNodeData) => void;
@@ -70,7 +70,7 @@ export function CanvasNodeHoverToolbar({
     onSaveAsset,
     onMaskEdit,
     onRemoveBackground,
-    backgroundRemovalBusy,
+    backgroundRemovalStatus,
     onCrop,
     onSplit,
     onUpscale,
@@ -160,7 +160,7 @@ export function CanvasNodeHoverToolbar({
         ...(hasImage ? imageTools : []),
     ];
     const toolbarTools = (hasImage ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...baseToolbarTools, ...nodeToolbarTools]).map((tool) =>
-        tool.id === "removeBackground" && backgroundRemovalBusy ? { ...tool, label: "抠图中", icon: <LoaderCircle className="size-4 animate-spin" />, disabled: true } : tool,
+        tool.id === "removeBackground" && backgroundRemovalStatus ? { ...tool, label: backgroundRemovalStatus === "queued" ? "排队中" : "抠图中", icon: <LoaderCircle className="size-4 animate-spin" />, disabled: true } : tool,
     );
     const selectableImageToolbarTools = [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id !== "retry") as ImageToolbarSettingsTool[];
 
