@@ -36,7 +36,7 @@ const (
 	psdSkillPath        = ".agents/skills/poster-layer-psd"
 	psdScriptPath       = "scripts/poster_layer_psd.py"
 	psdMaxUploadBytes   = 30 << 20
-	psdTaskHTTPTimeout  = 1200 * time.Second
+	psdTaskHTTPTimeout  = 180 * time.Second
 	psdPythonOutputTail = 4000
 	psdTaskMetaName     = "task.json"
 )
@@ -198,12 +198,18 @@ func runPSDTask(ctx context.Context, id string) {
 			state.task.Status = model.PSDTaskStatusCanceled
 			state.task.Error = "任务已终止"
 		} else if err != nil {
-			state.task.Status = model.PSDTaskStatusFailed
-			state.task.Error = safeTaskError(err)
+			if warning, ok := err.(posterLayerPSDWarning); ok {
+				state.task.Status = model.PSDTaskStatusSuccess
+				state.task.Warning = string(warning)
+			} else {
+				state.task.Status = model.PSDTaskStatusFailed
+				state.task.Error = safeTaskError(err)
+			}
 		} else {
 			state.task.Status = model.PSDTaskStatusSuccess
 		}
 		state.cancel = nil
+		state.task.Stage = ""
 		state.task.FinishedAt = now()
 	})
 }
@@ -213,7 +219,11 @@ func executePSDTask(ctx context.Context, id string) error {
 	if !ok {
 		return errors.New("任务不存在")
 	}
-	return newPosterLayerPSDExecutor().Execute(ctx, state.taskDir, state.sourcePath, state.basename, state.task.Model)
+	executor := newPosterLayerPSDExecutor()
+	executor.progress = func(stage string) {
+		updatePSDTask(id, func(state *psdTaskState) { state.task.Stage = stage })
+	}
+	return executor.Execute(ctx, state.taskDir, state.sourcePath, state.basename, state.task.Model)
 }
 
 func generatePSDLayerConfig(ctx context.Context, sourcePath string, basename string, modelName string) ([]byte, error) {
@@ -253,7 +263,7 @@ func requestPSDResponseJSON(ctx context.Context, modelName string, systemPrompt 
 			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: content},
 		},
-		"reasoning": map[string]string{"effort": "high"},
+		"reasoning": map[string]string{"effort": "medium"},
 		"text": map[string]any{
 			"format": map[string]string{"type": "json_object"},
 		},
@@ -283,53 +293,57 @@ func psdConfigPrompt(basename string, width int, height int) string {
 		sizeHint = fmt.Sprintf("图片尺寸为 %dx%d。", width, height)
 	}
 	return strings.TrimSpace(sizeHint + `
-请把这张海报、App 截图、落地页或营销图拆解为可编辑 PSD 图层配置 JSON。
+请把这张海报、App 截图、落地页或营销图按独立可编辑元素精细拆解为 PSD 图层配置 JSON。
 你的输出会直接交给 Python 脚本生成 PSD、透明 PNG 图层 ZIP、manifest 和预览图，所以必须严格使用脚本支持的字段。
 
 必须符合这个结构：
 {
   "basename": "` + basename + `",
+  "strategy": "semantic-ui",
   "background": {
-    "mode": "clean",
-    "name": "00_clean_background",
-    "fill": [250,252,247],
-    "blur": 42,
-    "tint": 0.78,
-    "masks": [{"box":[left,top,right,bottom]}],
-    "alpha_from_layers": []
+    "mode": "solid",
+    "name": "00_rebuilt_background",
+    "fill": [248,250,245]
   },
   "layers": [
-    {"name":"01_hero_object","box":[left,top,right,bottom],"extract":"raw"},
-    {"name":"02_card_background","type":"panel","box":[left,top,right,bottom],"rect":[0,0,width,height],"radius":12,"fill":[255,255,255,248],"shadow_alpha":18,"shadow_blur":10}
+    {"name":"01_card_background","role":"container","type":"panel","box":[left,top,right,bottom],"radius":20,"fill":[255,255,255,255]},
+    {"name":"02_card_title","role":"text","parent":"01_card_background","box":[left,top,right,bottom],"extract":"color-bg"},
+    {"name":"03_card_icon","role":"icon","parent":"01_card_background","box":[left,top,right,bottom],"extract":"circle"}
   ]
 }
 
 支持字段：
-1. 顶层只使用 basename、background、layers。
-2. background.mode 只能是 "source"、"solid"、"clean"；优先用 "clean"。
+1. 顶层只使用 basename、strategy、background、layers。简单纯色 UI 必须使用 strategy:"semantic-ui"，海报或复杂纹理图片不使用这个 strategy。
+2. background.mode 只能是 "partition"、"source"、"solid"、"clean"。semantic-ui 必须用 solid，fill 按源图实际背景取色；该模式重建完整容器，不挖像素孔洞。复杂海报可使用 partition 保留纹理，并说明不能补绘遮挡内容。
 3. background.masks 是源图像坐标矩形，用来覆盖大块前景区域，例如卡片、导航栏、主视觉、按钮组、图片区域。
 4. background.alpha_from_layers 只能引用 layers 中已经存在的图层名，适合人物、植物、商品、Logo 等不规则主体。
 5. layer.name 必填，只能用英文、数字、下划线，按视觉从底到顶编号，例如 01_hero_product。
 6. layer.box 必填，格式为 [left, top, right, bottom]，必须是源图像像素坐标，left < right，top < bottom，不要超出图片边界。
-7. extract 只能是 "raw"、"photo"、"circle"、"nonbg"、"light-bg"、"plant"。
+7. extract 只能是 "raw"、"photo"、"circle"、"nonbg"、"light-bg"、"color-bg"、"plant"、"object"。
 8. type 只能是 "panel"、"nav-bar"、"solid"。使用 type 时仍必须提供 box。
 9. panel 可使用 rect、radius、fill、shadow_alpha、shadow_blur、shadow_offset；rect 是图层内部局部坐标，不是源图像坐标。
 10. photo 和 solid 可使用 radius。
+11. 裁剪图层可使用 exclude_boxes，值为源图坐标矩形数组，用于擦除该层中不属于它的内容。相框层必须用 exclude_boxes 擦掉照片内部区域，路线层必须擦掉其框内照片、文字等无关区域；无法准确排除时保留在底图，不创建会吞掉其他图层的大框。
+12. semantic-ui 中每层必须有 role，只能是 container、text、icon、photo、object。parent 可填写所属容器的图层名，父容器必须先于子元素。container 必须使用生成 type，且显式 fill 为不透明 RGB/RGBA，不能用 raw 卡片截图当容器。role 和 parent 用于识别/校验元素归属，PSD 暂不创建文件夹分组。
+13. plant/object 使用离线主体分割。可提供 foreground_polygon（源图坐标多边形点数组），仅保护确定属于主体的可见内部区域，例如花盆的浅色、高光部分；多边形不得覆盖主体外背景。
 
 拆层策略：
-1. 用提取 PNG 图层处理文字、图标、照片、Logo、商品、人物、装饰物。
-2. 简单白色/浅色卡片、工具栏、导航栏、按钮背景优先生成 type:"panel"、type:"nav-bar" 或 type:"solid"，不要把整张卡片作为 raw 大图层。
-3. 卡片背景生成后，卡片内的文字、图标、照片、状态标记仍要单独拆成上层。
+1. 先判断视觉元素是不是一个整体，再按容器与内容关系输出 role、parent 和完整范围。默认“水滴+圆形底色”“加号+圆形底色”“书本+圆形底色”各是完整图标，图标内的白色、高光和纹理不能切开，也不能同时再提取一份图标内部主体。相邻文字不是图标的一部分，必须独立。
+2. 简单 UI 的卡片、工具栏、导航栏、按钮背景必须重建成不含任何文字和图标的完整不透明容器，不能把含内容的原图 raw 裁剪当底层，更不能从容器上挖图标形状的透明洞。复杂海报 partition 模式才允许 raw 容器并明确透明空缺限制；不要把纹理纸张、礼盒、托盘猜成白色面板。
+3. 卡片背景生成后，卡片内的标题、正文、价格、照片、图标、状态标记、按钮背景、按钮文字分别拆层，不能合成 card_content 或 tile_content 层；导航项的图标与标签、Logo 与旁边的标题也分别拆层。
 4. 文字、深色图标、线性图标在浅色背景上优先用 extract:"nonbg" 或 "light-bg"。
 5. 文字层 box 必须包含完整字形、标点、阴影和行高，不要裁掉中文笔画、英文上下伸出部分、数字上沿或图标边缘。
 6. 文字、Logo、图标层的 box 在可见内容外至少预留 4 到 8 像素安全边距；小字号、细线图标和中文文字宁可稍大，不要贴边。
-7. 多字词、标题、按钮文字、标签文字按自然短语或整行拆层，不要逐字拆；同一行文字高度必须覆盖整行最高和最低笔画。
-8. 照片、截图缩略图、商品图使用 extract:"photo"，有圆角时加 radius。
-9. 头像或圆形图标使用 extract:"circle"。
-10. 绿色植物或类似不规则主体可用 extract:"plant"。
-11. 不确定如何抠图时使用 extract:"raw"，不要创造脚本不支持的 extract/type。
-12. 只拆主要可编辑元素，优先 15 到 40 层；简单图可以少于 15 层，复杂图最多 60 层。
+7. 多字词、标题、按钮文字、标签文字按自然短语或整行拆层，不要逐字拆；同一行文字高度必须覆盖整行最高和最低笔画。不同标题、副标题、正文段落、价格、标签、列表项分别拆层，同一段语义连贯的正文可以保留多行。
+8. 原图中有明确矩形边界的照片、截图缩略图才使用 role:"photo" 和 extract:"photo"，有圆角时加 radius。顶部装饰盆栽、人物、商品等不规则主体必须使用 role:"object"，不能误当整块照片裁剪后连背景一起保留。
+9. 头像或带圆底的完整图标使用 extract:"circle"，box 覆盖整个圆底，不要只框住圆底内部的水滴/叶片等主体。完整图标和旁边文字分别拆层，不把同一个图标又拆成圆底层和内部主体层。
+10. 浅色背景上的绿色盆栽使用 extract:"plant"，该模式结合分割模型与背景色保护浅色叶片；其他不规则主体使用 extract:"object"。不要裁掉完整枝叶；浅色花盆和主体高光可用 foreground_polygon 保留可见轮廓内区域。Logo 或按钮图标里的叶子仍是图标，使用 nonbg/circle，不要误用 plant 主体分割。
+11. 不确定如何抠图时使用 extract:"raw"，但仍须每个元素独立裁剪，不能把整张卡片、按钮组或文字加图标整体打包；浅色背景上的文字和图标优先用 nonbg。裁剪框内不能带入相邻元素，不要创造脚本不支持的 extract/type。
+12. 按实际元素数量决定层数，不设目标层数或 60 层上限，不得为了减少层数合并独立元素。单张照片或完整人物/商品主体保留整体，不拆主体内部纹理或细节。
 13. 图层顺序按 PSD 从底到顶排列：背景不放进 layers，先放大块面板/导航，再放照片/商品，最后放文字、Logo、图标和前景装饰。
+14. 手机状态栏（时间、信号、Wi-Fi、电池）允许整体保留，图标内部的装饰、阴影、光晕不强制拆开；优先确保业务标题、正文、照片、按钮和图标独立。
+15. 不规则主体或文字与复杂背景、其他前景重叠时，矩形裁剪不能移除邻近内容，也不能补全被遮挡的部分。不要用 raw/photo 重复叠加带有其他文字、标签、前景的整块区域来冒充主体抠图。
+16. 蓝底白字、绿底白字、黄底黑字等局部纯色背景上的文字使用 color-bg。不要把彩色背景当成必须保留的深色前景，也不要把白色字形当作白底去掉。渐变或照片上的内容保留原始可见像素，不承诺纯净抠图。
 
 规则：
 1. 只返回 JSON 对象，不要代码块。
@@ -411,6 +425,9 @@ func normalizePSDLayerConfig(text string, basename string) ([]byte, error) {
 		name := strings.TrimSpace(layer.Name)
 		if name == "" || len(layer.Box) != 4 {
 			return nil, safeMessageError{message: "文本模型返回的图层缺少名称或坐标"}
+		}
+		if layerNames[name] || layer.Box[2] <= layer.Box[0] || layer.Box[3] <= layer.Box[1] {
+			return nil, safeMessageError{message: "图层名称重复或坐标范围无效"}
 		}
 		layerNames[name] = true
 	}

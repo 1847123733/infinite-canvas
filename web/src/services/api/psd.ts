@@ -18,6 +18,8 @@ export type PSDTask = {
     startedAt: string;
     finishedAt: string;
     error: string;
+    warning: string;
+    stage: string;
     files: PSDTaskFile[];
 };
 

@@ -79,15 +79,15 @@ func TestPosterLayerPSDModelCallsUseSkillAwareResponsesAPI(t *testing.T) {
 				}
 				wantImages := 1
 				if requestCount == 2 {
-					wantImages = 2
+					wantImages = 3
 				}
 				if imageCount != wantImages {
 					t.Errorf("request %d image count = %d, want %d", requestCount, imageCount, wantImages)
 				}
 			}
 		}
-		if payload.Reasoning.Effort != "high" {
-			t.Errorf("reasoning effort = %q, want high", payload.Reasoning.Effort)
+		if payload.Reasoning.Effort != "medium" {
+			t.Errorf("reasoning effort = %q, want medium", payload.Reasoning.Effort)
 		}
 		if payload.Text.Format.Type != "json_object" {
 			t.Errorf("text format = %q, want json_object", payload.Text.Format.Type)
@@ -101,7 +101,7 @@ func TestPosterLayerPSDModelCallsUseSkillAwareResponsesAPI(t *testing.T) {
 			_, _ = w.Write([]byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"{\"basename\":\"ignored\",\"background\":{\"mode\":\"source\"},\"layers\":[{\"name\":\"01_title\",\"box\":[0,0,1,1],\"extract\":\"raw\"}]}"}]}]}`))
 			return
 		}
-		_, _ = w.Write([]byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"{\"status\":\"revise\",\"issues\":[\"标题需要扩大边界\"],\"config\":{\"basename\":\"ignored\",\"background\":{\"mode\":\"source\"},\"layers\":[{\"name\":\"01_title_revised\",\"box\":[0,0,1,1],\"extract\":\"raw\"}]}}"}]}]}`))
+		_, _ = w.Write([]byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"{\"status\":\"revise\",\"issues\":[\"标题需要扩大边界\"],\"changes\":[{\"name\":\"01_title\",\"layers\":[{\"name\":\"01_title_revised\",\"box\":[0,0,1,1],\"extract\":\"raw\"}]}]}"}]}]}`))
 	}))
 	defer server.Close()
 
@@ -154,11 +154,18 @@ func TestPosterLayerPSDModelCallsUseSkillAwareResponsesAPI(t *testing.T) {
 		t.Fatalf("layer config = %#v", layerConfig)
 	}
 
+	contactSheet, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatalf("read contact sheet fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tempDir, "psd_test_layers_contact_sheet_001.png"), contactSheet, 0644); err != nil {
+		t.Fatalf("write contact sheet fixture: %v", err)
+	}
 	review, err := reviewPSDLayerPreview(context.Background(), sourcePath, sourcePath, result, "psd_test", modelName)
 	if err != nil {
 		t.Fatalf("reviewPSDLayerPreview returned error: %v", err)
 	}
-	if review.Status != "revise" || len(review.Issues) != 1 || len(review.Config) == 0 {
+	if review.Status != "revise" || len(review.Issues) != 1 || len(review.Changes) != 1 {
 		t.Fatalf("review = %#v", review)
 	}
 	if requestCount != 2 {

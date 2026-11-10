@@ -66,6 +66,11 @@ await writeFile(manifestPath, JSON.stringify(resources));
 await copyFile(resolve(packageDir, "LICENSE.md"), resolve(outputDir, "LICENSE.md"));
 await copyFile(resolve(packageDir, "ThirdPartyLicenses.json"), resolve(outputDir, "ThirdPartyLicenses.json"));
 
+// PSD 主体分割通过内置 Node 运行同一份 fp16 模型，离线包一并携带匹配的 CPU 运行时。
+const objectRuntime = resolve(outputDir, "object-runtime");
+await mkdir(objectRuntime, { recursive: true });
+await Promise.all(["ort.wasm.bundle.min.mjs", "ort-wasm-simd-threaded.mjs", "ort-wasm-simd-threaded.wasm"].map((name) => copyFile(resolve(webDir, "node_modules/onnxruntime-web/dist", name), resolve(objectRuntime, name))));
+
 // 独立编译浏览器 Worker，避免 Next.js 将 ONNX 的 Node 入口或大型运行时带入页面。
 const result = await Bun.build({
     entrypoints: [resolve(webDir, "src/app/(user)/canvas/workers/background-removal.worker.ts")],

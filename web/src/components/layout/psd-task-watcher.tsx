@@ -41,7 +41,7 @@ export function PSDTaskWatcher() {
                         previousStatusRef.current[next.id] = next.status;
                         upsertTask(next);
                         if (runningStatuses.has(prevStatus) && next.status === "success") {
-                            notifyGlobal({ type: "success", title: "PSD 任务已完成", description: next.sourceName });
+                            notifyGlobal({ type: next.warning ? "warning" : "success", title: next.warning ? "PSD 已生成，请检查提示" : "PSD 任务已完成", description: next.warning || next.sourceName });
                         } else if (runningStatuses.has(prevStatus) && next.status === "failed") {
                             notifyGlobal({ type: "error", title: "PSD 任务失败", description: next.error || next.sourceName });
                         } else if (runningStatuses.has(prevStatus) && next.status === "canceled") {

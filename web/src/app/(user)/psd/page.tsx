@@ -1,6 +1,6 @@
 "use client";
 
-import { App, Button, Empty, Image, Progress, Tag, Typography } from "antd";
+import { App, Button, Empty, Image, Tag, Typography } from "antd";
 import { Archive, CircleStop, Clock3, Download, FileJson, FileType2, ImageUp, Layers3, LoaderCircle, Play, Plus, RotateCcw, Trash2, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -42,6 +42,8 @@ export default function PSDWorkbenchPage() {
     const removeTask = usePSDTaskStore((state) => state.removeTask);
     const task = activeTaskId ? tasks.find((item) => item.id === activeTaskId) || null : null;
     const running = task?.status === "pending" || task?.status === "running";
+    const sourceFileUrl = task?.files.find((item) => item.name === "source")?.url;
+    const previewFileUrl = task?.files.find((item) => item.name === "preview")?.url;
 
     useEffect(() => {
         if (!task?.startedAt || !running) return;
@@ -59,44 +61,51 @@ export default function PSDWorkbenchPage() {
     }, [file]);
 
     useEffect(() => {
-        if (!task || file?.name === task.sourceName) return;
-        const source = task.files.find((item) => item.name === "source");
-        if (!source) return;
+        if (!sourceFileUrl || file?.name === task?.sourceName) return;
         let url = "";
-        void fetchPSDTaskFile(source.url)
+        let active = true;
+        void fetchPSDTaskFile(sourceFileUrl)
             .then((blob) => {
+                if (!active) return;
                 url = URL.createObjectURL(blob);
                 setSourceUrl(url);
             })
-            .catch(() => message.error("读取原图失败"));
+            .catch(() => {
+                if (active) message.error("读取原图失败");
+            });
         return () => {
+            active = false;
             if (url) URL.revokeObjectURL(url);
             setSourceUrl("");
         };
-    }, [file?.name, message, task]);
+    }, [file?.name, message, sourceFileUrl, task?.sourceName]);
 
     useEffect(() => {
         if (task?.status !== "success") {
             setPreviewUrl("");
             return;
         }
-        const preview = task.files.find((item) => item.name === "preview");
-        if (!preview) {
+        if (!previewFileUrl) {
             setPreviewUrl("");
             return;
         }
         let url = "";
-        void fetchPSDTaskFile(preview.url)
+        let active = true;
+        void fetchPSDTaskFile(previewFileUrl)
             .then((blob) => {
+                if (!active) return;
                 url = URL.createObjectURL(blob);
                 setPreviewUrl(url);
             })
-            .catch(() => message.error("读取预览失败"));
+            .catch(() => {
+                if (active) message.error("读取预览失败");
+            });
         return () => {
+            active = false;
             if (url) URL.revokeObjectURL(url);
             setPreviewUrl("");
         };
-    }, [message, task]);
+    }, [message, previewFileUrl, task?.status]);
 
     const statusTag = useMemo(() => {
         if (!task) return <Tag>待开始</Tag>;
@@ -187,7 +196,9 @@ export default function PSDWorkbenchPage() {
                                     <Typography.Title level={2} className="!m-0 !text-xl !font-medium dark:!text-stone-100">
                                         PSD工作台
                                     </Typography.Title>
-                                    <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">任务 {task?.id || "未创建"} · {statusTag}</div>
+                                    <div className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                                        任务 {task?.id || "未创建"} · {statusTag}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -209,7 +220,11 @@ export default function PSDWorkbenchPage() {
                         <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(event) => setFile(event.target.files?.[0] || null)} />
                         <div className="mt-5">
                             <PanelTitle title="原图" extra={task?.sourceName || file?.name || ""} />
-                            <button type="button" className="mt-3 flex h-[360px] w-full items-center justify-center border border-dashed border-stone-300 bg-[#f8faf9] p-5 text-center transition hover:border-emerald-600 hover:bg-white dark:border-stone-700 dark:bg-[#171716] dark:hover:border-emerald-300 dark:hover:bg-[#20201e]" onClick={() => inputRef.current?.click()}>
+                            <button
+                                type="button"
+                                className="mt-3 flex h-[360px] w-full items-center justify-center border border-dashed border-stone-300 bg-[#f8faf9] p-5 text-center transition hover:border-emerald-600 hover:bg-white dark:border-stone-700 dark:bg-[#171716] dark:hover:border-emerald-300 dark:hover:bg-[#20201e]"
+                                onClick={() => inputRef.current?.click()}
+                            >
                                 {sourceUrl ? (
                                     <img src={sourceUrl} alt="PSD 原图" className="max-h-full max-w-full object-contain" />
                                 ) : (
@@ -237,7 +252,17 @@ export default function PSDWorkbenchPage() {
                             <Metric label="已执行" value={durationText} />
                             <Metric label="文本模型" value={task?.model || "-"} />
                             <Metric label="源文件" value={task?.sourceName || file?.name || "-"} />
-                            {running ? <Progress percent={task?.status === "pending" ? 18 : 62} status="active" showInfo={false} /> : null}
+                            {running ? (
+                                <div className="flex items-center gap-2 text-sm">
+                                    <LoaderCircle className="size-4 animate-spin" />
+                                    {task?.stage || "正在准备任务"}
+                                </div>
+                            ) : null}
+                            {task?.warning ? (
+                                <div role="status" className="border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                                    {task.warning}
+                                </div>
+                            ) : null}
                             {task?.error ? <div className="border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">{task.error}</div> : null}
                         </div>
                     </div>

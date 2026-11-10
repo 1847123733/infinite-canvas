@@ -23,6 +23,8 @@ class Layer:
     left: int
     top: int
     kind: str
+    role: str = "element"
+    parent: str | None = None
 
     @property
     def width(self) -> int:
@@ -163,51 +165,20 @@ def transparent_from_light_background(
     crop: Image.Image,
     low: float = 9.0,
     high: float = 44.0,
-    dark: int = 246,
-    sat_min: int = 22,
 ) -> Image.Image:
     rgb = np.asarray(crop.convert("RGB")).astype(np.int16)
-    luma = (0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.114 * rgb[:, :, 2]).astype(np.float32)
-    sat = rgb.max(axis=2) - rgb.min(axis=2)
-
-    light_bg = (luma > 225) & (sat < 38)
-    if np.count_nonzero(light_bg) > 32:
-        bg = np.median(rgb[light_bg], axis=0)
-    else:
-        border = np.concatenate([rgb[0, :, :], rgb[-1, :, :], rgb[:, 0, :], rgb[:, -1, :]], axis=0)
-        bg = np.median(border, axis=0)
+    border = np.concatenate([rgb[0, :, :], rgb[-1, :, :], rgb[:, 0, :], rgb[:, -1, :]], axis=0)
+    bins = border // 16
+    colors, counts = np.unique(bins, axis=0, return_counts=True)
+    dominant = np.all(bins == colors[counts.argmax()], axis=1)
+    bg = np.median(border[dominant], axis=0)
 
     diff = np.sqrt(np.sum((rgb.astype(np.float32) - bg.astype(np.float32)) ** 2, axis=2))
     alpha = ((diff - low) / max(1.0, high - low) * 255.0).clip(0, 255)
-    strong = (luma < dark) | ((sat > sat_min) & (diff > low * 0.7))
-    alpha = np.maximum(alpha, strong.astype(np.float32) * 210)
     alpha[alpha < 28] = 0
     alpha_img = Image.fromarray(alpha.astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(0.35))
     out = crop.convert("RGBA")
-    out.putalpha(alpha_img)
-    return out
-
-
-def transparent_plant(crop: Image.Image) -> Image.Image:
-    rgb = np.asarray(crop.convert("RGB")).astype(np.int16)
-    height, width = rgb.shape[:2]
-    yy, xx = np.indices((height, width))
-    luma = (0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.114 * rgb[:, :, 2]).astype(np.float32)
-    sat = rgb.max(axis=2) - rgb.min(axis=2)
-    green_bias = rgb[:, :, 1] - np.maximum(rgb[:, :, 0], rgb[:, :, 2])
-    border = np.concatenate([rgb[0, :, :], rgb[-1, :, :], rgb[:, 0, :], rgb[:, -1, :]], axis=0)
-    bg = np.median(border, axis=0)
-    diff = np.sqrt(np.sum((rgb.astype(np.float32) - bg.astype(np.float32)) ** 2, axis=2))
-    green_leaf = (green_bias > 6) & (sat > 9) & (luma < 252)
-    muted_leaf = (green_bias > -3) & (sat > 18) & (luma < 232) & (diff > 18)
-    pot_region = (xx > width * 0.46) & (yy > height * 0.50) & (luma < 238) & (sat < 62) & (diff > 12)
-    plant_like = green_leaf | muted_leaf | pot_region
-    alpha = ((diff - 18.0) / 58.0 * 180.0).clip(0, 180)
-    alpha = np.maximum(alpha, plant_like.astype(np.float32) * 238)
-    alpha[alpha < 52] = 0
-    alpha_img = Image.fromarray(alpha.astype(np.uint8), "L").filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.GaussianBlur(0.7))
-    out = crop.convert("RGBA")
-    out.putalpha(alpha_img)
+    out.putalpha(ImageChops.multiply(out.getchannel("A"), alpha_img))
     return out
 
 
@@ -272,16 +243,20 @@ def build_generated_layer(spec: dict[str, Any]) -> Layer:
 
     if layer_type == "panel":
         rect = spec.get("rect", [0, 0, width - 1, height - 1])
+        shadow_alpha = int(spec.get("shadow_alpha", 12 if spec.get("role") == "container" else 28))
+        shadow_blur = float(spec.get("shadow_blur", 12.0))
+        shadow_offset = tuple(int(v) for v in spec.get("shadow_offset", [0, 7]))
+        pad = min(int(3 * shadow_blur + max(abs(v) for v in shadow_offset) + 1), max(0, min(left, top))) if shadow_alpha else 0
         img = panel_asset(
-            (width, height),
-            rect=tuple(int(v) for v in rect),
+            (width + pad * 2, height + pad * 2),
+            rect=tuple(int(v) + pad for v in rect),
             radius=int(spec.get("radius", 12)),
             fill=as_rgba(spec.get("fill", [255, 255, 255, 248])),
-            shadow_alpha=int(spec.get("shadow_alpha", 28)),
-            shadow_blur=float(spec.get("shadow_blur", 12.0)),
-            shadow_offset=tuple(int(v) for v in spec.get("shadow_offset", [0, 7])),
+            shadow_alpha=shadow_alpha,
+            shadow_blur=shadow_blur,
+            shadow_offset=shadow_offset,
         )
-        return Layer(name, img, left, top, "generated_panel")
+        return Layer(name, img, left - pad, top - pad, "generated_panel")
 
     if layer_type == "nav-bar":
         img = nav_bar_asset(width, height, as_rgba(spec.get("fill", [255, 255, 255, 247])))
@@ -298,23 +273,31 @@ def build_generated_layer(spec: dict[str, Any]) -> Layer:
 
 
 def build_crop_layer(source: Image.Image, spec: dict[str, Any]) -> Layer:
-    left, top, _, _ = box_from_spec(spec)
-    crop = crop_box(source, box_from_spec(spec))
+    left, top, right, bottom = box_from_spec(spec)
     extract = str(spec.get("extract", "raw"))
     name = str(spec["name"])
+    if extract == "circle":
+        side = min(max(right - left, bottom - top), source.width, source.height)
+        left = max(0, min((left + right - side) // 2, source.width - side))
+        top = max(0, min((top + bottom - side) // 2, source.height - side))
+        right, bottom = left + side, top + side
+    crop = crop_box(source, (left, top, right, bottom))
 
     if extract in ("raw", "solid"):
         img = crop
-    elif extract in ("nonbg", "light-bg"):
+    elif extract in ("nonbg", "light-bg", "color-bg"):
         img = transparent_from_light_background(
             crop,
             low=float(spec.get("low", 9.0)),
             high=float(spec.get("high", 44.0)),
-            dark=int(spec.get("dark", 246)),
-            sat_min=int(spec.get("sat_min", 22)),
         )
-    elif extract == "plant":
-        img = transparent_plant(crop)
+    elif extract in ("plant", "object"):
+        # Embedded Python does not automatically include the script directory.
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from object_mask import extract_object
+        polygon = spec.get("foreground_polygon")
+        local_polygon = [[int(x) - left, int(y) - top] for x, y in polygon] if polygon else None
+        img = extract_object(crop, extract == "plant", local_polygon)
     elif extract == "circle":
         img = apply_circle_mask(crop)
     elif extract == "photo":
@@ -325,19 +308,50 @@ def build_crop_layer(source: Image.Image, spec: dict[str, Any]) -> Layer:
     else:
         raise ValueError(f"Unsupported extract mode for {name}: {extract}")
 
+    if spec.get("exclude_boxes"):
+        alpha = img.getchannel("A")
+        draw = ImageDraw.Draw(alpha)
+        for x1, y1, x2, y2 in spec["exclude_boxes"]:
+            draw.rectangle((int(x1) - left, int(y1) - top, int(x2) - left - 1, int(y2) - top - 1), fill=0)
+        img.putalpha(alpha)
+
     return Layer(name, img, left, top, extract)
 
 
 def build_foreground_layers(source: Image.Image, config: dict[str, Any]) -> list[Layer]:
+    if config.get("strategy") == "semantic-ui":
+        validate_semantic_ui(config)
     layers = []
     for spec in config.get("layers", []):
         if "name" not in spec:
             raise ValueError(f"Layer spec missing name: {spec}")
         if spec.get("type") in ("panel", "nav-bar", "solid"):
-            layers.append(build_generated_layer(spec))
+            layer = build_generated_layer(spec)
         else:
-            layers.append(build_crop_layer(source, spec))
+            layer = build_crop_layer(source, spec)
+        layer.role = str(spec.get("role", "element"))
+        layer.parent = spec.get("parent")
+        layers.append(layer)
     return layers
+
+
+def validate_semantic_ui(config: dict[str, Any]) -> None:
+    if config.get("background", {}).get("mode") != "solid":
+        raise ValueError("semantic-ui requires a solid rebuilt background; partition leaves holes")
+    seen = {}
+    for spec in config["layers"]:
+        name, role = spec.get("name"), spec.get("role")
+        if not name or name in seen or role not in ("container", "text", "icon", "photo", "object"):
+            raise ValueError(f"Invalid or duplicate semantic element: {name}")
+        if role == "container":
+            if spec.get("type") not in ("panel", "nav-bar", "solid"):
+                raise ValueError(f"container {name} must be rebuilt, not cropped with its children")
+            if "fill" not in spec or as_rgba(spec["fill"])[3] != 255:
+                raise ValueError(f"container {name} needs an opaque fill")
+        parent = spec.get("parent")
+        if parent and (parent not in seen or seen[parent] != "container"):
+            raise ValueError(f"Element {name} needs a preceding container parent: {parent}")
+        seen[name] = role
 
 
 def make_background(source: Image.Image, bg_spec: dict[str, Any], foreground_by_name: dict[str, Layer]) -> Image.Image:
@@ -346,6 +360,21 @@ def make_background(source: Image.Image, bg_spec: dict[str, Any], foreground_by_
 
     if mode == "source":
         return source.convert("RGBA")
+
+    if mode == "partition":
+        # Assign opaque visible pixels to the topmost matching layer. Hidden
+        # content is left transparent rather than replaced by blurred guesses.
+        covered = Image.new("L", (width, height), 0)
+        for layer in reversed(list(foreground_by_name.values())):
+            alpha = layer.image.getchannel("A")
+            layer.image.putalpha(ImageChops.subtract(alpha, covered.crop((layer.left, layer.top, layer.right, layer.bottom))))
+            opaque = alpha.point(lambda value: 255 if value == 255 else 0)
+            positioned = Image.new("L", (width, height), 0)
+            positioned.paste(opaque, (layer.left, layer.top))
+            covered = ImageChops.lighter(covered, positioned)
+        background = source.convert("RGBA")
+        background.putalpha(ImageChops.invert(covered))
+        return background
 
     if mode == "solid":
         return Image.new("RGBA", (width, height), as_rgba(bg_spec.get("fill", [250, 252, 247, 255])))
@@ -406,6 +435,33 @@ def composite_layers(canvas_size: tuple[int, int], layers_bottom_to_top: list[La
     return canvas
 
 
+def save_contact_sheets(out_dir: Path, basename: str, layers: list[Layer]) -> list[Path]:
+    for old_page in out_dir.glob(f"{basename}_layers_contact_sheet_*.png"):
+        old_page.unlink()
+    paths = []
+    cell_width, cell_height = 360, 236
+    for start in range(0, len(layers), 12):
+        page_layers = layers[start:start + 12]
+        rows = (len(page_layers) + 2) // 3
+        sheet = Image.new("RGB", (cell_width * 3, cell_height * rows), (245, 245, 245))
+        draw = ImageDraw.Draw(sheet)
+        for index, layer in enumerate(page_layers):
+            x, y = (index % 3) * cell_width, (index // 3) * cell_height
+            draw.text((x + 12, y + 8), f"{start + index:03d} {layer.name}"[:54], fill=(20, 20, 20))
+            draw.text((x + 12, y + 24), f"{layer.kind} box=({layer.left},{layer.top},{layer.right},{layer.bottom})", fill=(60, 60, 60))
+            for tile_y in range(0, 176, 16):
+                for tile_x in range(0, 336, 16):
+                    shade = 180 if (tile_x // 16 + tile_y // 16) % 2 else 220
+                    draw.rectangle((x + 12 + tile_x, y + 48 + tile_y, x + 27 + tile_x, y + 63 + tile_y), fill=(shade, shade, shade))
+            thumb = layer.image.convert("RGBA")
+            thumb.thumbnail((336, 176), Image.Resampling.LANCZOS)
+            sheet.paste(thumb, (x + 12 + (336 - thumb.width) // 2, y + 48 + (176 - thumb.height) // 2), thumb)
+        path = out_dir / f"{basename}_layers_contact_sheet_{start // 12 + 1:03d}.png"
+        sheet.save(path)
+        paths.append(path)
+    return paths
+
+
 def save_assets(out_dir: Path, basename: str, layers: list[Layer], source: Path) -> tuple[Path, list[dict[str, Any]]]:
     layers_dir = out_dir / f"{basename}_layers"
     if layers_dir.exists():
@@ -428,6 +484,8 @@ def save_assets(out_dir: Path, basename: str, layers: list[Layer], source: Path)
                 "width": layer.width,
                 "height": layer.height,
                 "kind": layer.kind,
+                "role": layer.role,
+                "parent": layer.parent,
                 "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
             }
         )
@@ -498,13 +556,15 @@ def run(source_path: Path, config_path: Path, out_dir: Path, basename_arg: str |
 
     preview = composite_layers(source.size, layers)
     preview.convert("RGB").save(preview_path)
-    write_layered_psd(psd_path, source.size, layers, source)
+    contact_sheets = save_contact_sheets(out_dir, basename, layers)
+    write_layered_psd(psd_path, source.size, layers, preview)
     write_zip(zip_path, out_dir, manifest_path, manifest_layers)
 
     return {
         "psd": str(psd_path),
         "zip": str(zip_path),
         "preview": str(preview_path),
+        "contact_sheets": [str(path) for path in contact_sheets],
         "manifest": str(manifest_path),
         "layers_dir": str(out_dir / f"{basename}_layers"),
         "layer_count": len(layers),

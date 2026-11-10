@@ -1,72 +1,566 @@
 {
   "basename": "plant_partner",
+  "strategy": "semantic-ui",
   "background": {
-    "mode": "clean",
-    "name": "00_clean_background",
-    "fill": [250, 252, 247],
-    "blur": 42,
-    "tint": 0.78,
-    "masks": [
-      {"box": [50, 28, 900, 174]},
-      {"box": [47, 250, 414, 372]},
-      {"box": [35, 410, 905, 806]},
-      {"box": [45, 830, 900, 1258]},
-      {"box": [40, 1265, 900, 1475]},
-      {"box": [0, 1498, 941, 1672]}
-    ],
-    "alpha_from_layers": ["01_hero_plant"],
-    "decorations": [
-      {"shape": "ellipse", "box": [470, 250, 730, 510], "fill": [215, 230, 205, 28], "blur": 40},
-      {"shape": "ellipse", "box": [20, 1220, 920, 1580], "fill": [224, 244, 218, 24], "blur": 40}
-    ]
+    "mode": "solid",
+    "name": "00_rebuilt_background",
+    "fill": [249, 250, 246]
   },
   "layers": [
-    {"name": "01_hero_plant", "box": [568, 168, 941, 421], "extract": "plant"},
-    {"name": "02_status_time", "box": [55, 29, 143, 64], "extract": "nonbg"},
-    {"name": "03_status_signal_wifi_battery", "box": [742, 28, 900, 62], "extract": "nonbg"},
-    {"name": "04_app_title_logo", "box": [48, 111, 290, 159], "extract": "nonbg"},
-    {"name": "05_notification_bell", "box": [716, 105, 782, 162], "extract": "nonbg"},
-    {"name": "06_profile_avatar", "box": [813, 102, 885, 174], "extract": "circle"},
-    {"name": "07_greeting_copy", "box": [48, 257, 414, 368], "extract": "nonbg"},
-    {"name": "08_calendar_card_background", "type": "panel", "box": [35, 409, 906, 806], "rect": [10, 10, 860, 385], "radius": 18, "fill": [255, 255, 255, 248], "shadow_alpha": 24, "shadow_blur": 12},
-    {"name": "09_calendar_header_title", "box": [72, 447, 277, 486], "extract": "nonbg"},
-    {"name": "10_calendar_header_more", "box": [747, 449, 870, 482], "extract": "nonbg"},
-    {"name": "11_calendar_today_highlight", "type": "panel", "box": [65, 506, 186, 771], "rect": [0, 0, 120, 264], "radius": 11, "fill": [228, 247, 220, 245], "shadow_alpha": 0},
-    {"name": "12_calendar_day_13", "box": [99, 528, 162, 756], "extract": "nonbg"},
-    {"name": "13_calendar_day_14", "box": [210, 528, 282, 756], "extract": "nonbg"},
-    {"name": "14_calendar_day_15", "box": [328, 528, 396, 756], "extract": "nonbg"},
-    {"name": "15_calendar_day_16", "box": [446, 528, 515, 756], "extract": "nonbg"},
-    {"name": "16_calendar_day_17", "box": [565, 528, 634, 756], "extract": "nonbg"},
-    {"name": "17_calendar_day_18", "box": [684, 528, 754, 756], "extract": "nonbg"},
-    {"name": "18_calendar_day_19", "box": [804, 528, 875, 756], "extract": "nonbg"},
-    {"name": "19_attention_section_title", "box": [48, 832, 190, 872], "extract": "nonbg"},
-    {"name": "20_attention_section_more", "box": [758, 835, 888, 868], "extract": "nonbg"},
-    {"name": "21_plant_card_01_background", "type": "panel", "box": [40, 882, 326, 1256], "rect": [9, 8, 277, 363], "radius": 9, "shadow_alpha": 18, "shadow_blur": 10},
-    {"name": "22_plant_card_01_photo", "box": [50, 891, 317, 1088], "extract": "photo", "radius": 8},
-    {"name": "23_plant_card_01_text", "box": [73, 1113, 239, 1223], "extract": "nonbg"},
-    {"name": "24_plant_card_01_status_icon", "box": [260, 1103, 301, 1145], "extract": "nonbg"},
-    {"name": "25_plant_card_02_background", "type": "panel", "box": [328, 882, 614, 1256], "rect": [9, 8, 277, 363], "radius": 9, "shadow_alpha": 18, "shadow_blur": 10},
-    {"name": "26_plant_card_02_photo", "box": [337, 891, 605, 1088], "extract": "photo", "radius": 8},
-    {"name": "27_plant_card_02_text", "box": [360, 1113, 538, 1223], "extract": "nonbg"},
-    {"name": "28_plant_card_02_status_icon", "box": [548, 1103, 590, 1145], "extract": "nonbg"},
-    {"name": "29_plant_card_03_background", "type": "panel", "box": [616, 882, 902, 1256], "rect": [9, 8, 277, 363], "radius": 9, "shadow_alpha": 18, "shadow_blur": 10},
-    {"name": "30_plant_card_03_photo", "box": [625, 891, 893, 1088], "extract": "photo", "radius": 8},
-    {"name": "31_plant_card_03_text", "box": [648, 1113, 840, 1223], "extract": "nonbg"},
-    {"name": "32_plant_card_03_status_icon", "box": [835, 1103, 877, 1145], "extract": "nonbg"},
-    {"name": "33_quick_tile_01_background", "type": "panel", "box": [40, 1263, 251, 1474], "rect": [9, 8, 202, 203], "radius": 8, "shadow_alpha": 14, "shadow_blur": 10},
-    {"name": "34_quick_tile_01_content", "box": [82, 1300, 211, 1442], "extract": "nonbg"},
-    {"name": "35_quick_tile_02_background", "type": "panel", "box": [255, 1263, 468, 1474], "rect": [9, 8, 204, 203], "radius": 8, "shadow_alpha": 14, "shadow_blur": 10},
-    {"name": "36_quick_tile_02_content", "box": [290, 1300, 435, 1442], "extract": "nonbg"},
-    {"name": "37_quick_tile_03_background", "type": "panel", "box": [471, 1263, 684, 1474], "rect": [9, 8, 204, 203], "radius": 8, "shadow_alpha": 14, "shadow_blur": 10},
-    {"name": "38_quick_tile_03_content", "box": [517, 1300, 642, 1442], "extract": "nonbg"},
-    {"name": "39_quick_tile_04_background", "type": "panel", "box": [687, 1263, 900, 1474], "rect": [9, 8, 204, 203], "radius": 8, "shadow_alpha": 14, "shadow_blur": 10},
-    {"name": "40_quick_tile_04_content", "box": [734, 1300, 860, 1442], "extract": "nonbg"},
-    {"name": "41_bottom_navigation_bar", "type": "nav-bar", "box": [0, 1498, 941, 1672]},
-    {"name": "42_nav_home", "box": [76, 1523, 146, 1616], "extract": "nonbg"},
-    {"name": "43_nav_plants", "box": [260, 1523, 321, 1616], "extract": "nonbg"},
-    {"name": "44_nav_discover", "box": [443, 1523, 503, 1616], "extract": "nonbg"},
-    {"name": "45_nav_community", "box": [625, 1523, 693, 1616], "extract": "nonbg"},
-    {"name": "46_nav_profile", "box": [810, 1523, 872, 1616], "extract": "nonbg"},
-    {"name": "47_home_indicator", "box": [307, 1645, 634, 1662], "extract": "nonbg"}
+    {
+      "name": "01_calendar_card",
+      "role": "container",
+      "type": "panel",
+      "box": [45, 419, 896, 792],
+      "radius": 24,
+      "fill": [255, 255, 255, 255]
+    },
+    {
+      "name": "02_calendar_today_cell",
+      "role": "container",
+      "parent": "01_calendar_card",
+      "type": "panel",
+      "box": [66, 507, 183, 771],
+      "radius": 18,
+      "fill": [237, 248, 226, 255]
+    },
+    {
+      "name": "03_plant_card_1",
+      "role": "container",
+      "type": "panel",
+      "box": [48, 891, 317, 1245],
+      "radius": 18,
+      "fill": [255, 255, 255, 255]
+    },
+    {
+      "name": "04_plant_card_2",
+      "role": "container",
+      "type": "panel",
+      "box": [336, 891, 605, 1245],
+      "radius": 18,
+      "fill": [255, 255, 255, 255]
+    },
+    {
+      "name": "05_plant_card_3",
+      "role": "container",
+      "type": "panel",
+      "box": [624, 891, 893, 1245],
+      "radius": 18,
+      "fill": [255, 255, 255, 255]
+    },
+    {
+      "name": "06_action_tile_my_plants",
+      "role": "container",
+      "type": "panel",
+      "box": [48, 1270, 244, 1467],
+      "radius": 20,
+      "fill": [255, 255, 255, 255]
+    },
+    {
+      "name": "07_action_tile_add_plant",
+      "role": "container",
+      "type": "panel",
+      "box": [263, 1270, 462, 1467],
+      "radius": 20,
+      "fill": [255, 255, 255, 255]
+    },
+    {
+      "name": "08_action_tile_encyclopedia",
+      "role": "container",
+      "type": "panel",
+      "box": [480, 1270, 678, 1467],
+      "radius": 20,
+      "fill": [255, 255, 255, 255]
+    },
+    {
+      "name": "09_action_tile_care_records",
+      "role": "container",
+      "type": "panel",
+      "box": [696, 1270, 894, 1467],
+      "radius": 20,
+      "fill": [255, 255, 255, 255]
+    },
+    {
+      "name": "10_bottom_navigation",
+      "role": "container",
+      "type": "nav-bar",
+      "box": [0, 1500, 941, 1672],
+      "fill": [255, 255, 255, 255]
+    },
+    {
+      "name": "11_hero_plant_object",
+      "role": "object",
+      "box": [547, 184, 941, 419],
+      "extract": "plant",
+      "foreground_polygon": [
+        [732, 345],
+        [876, 345],
+        [871, 418],
+        [732, 418]
+      ]
+    },
+    {
+      "name": "12_profile_photo",
+      "role": "photo",
+      "box": [813, 102, 888, 177],
+      "extract": "circle"
+    },
+    {
+      "name": "13_plant_photo_pothos",
+      "role": "photo",
+      "parent": "03_plant_card_1",
+      "box": [49, 892, 317, 1087],
+      "extract": "photo",
+      "radius": 14
+    },
+    {
+      "name": "14_plant_photo_monstera",
+      "role": "photo",
+      "parent": "04_plant_card_2",
+      "box": [337, 892, 605, 1087],
+      "extract": "photo",
+      "radius": 14
+    },
+    {
+      "name": "15_plant_photo_snake_plant",
+      "role": "photo",
+      "parent": "05_plant_card_3",
+      "box": [625, 892, 893, 1087],
+      "extract": "photo",
+      "radius": 14
+    },
+    {
+      "name": "16_brand_title",
+      "role": "text",
+      "box": [47, 109, 231, 162],
+      "extract": "color-bg"
+    },
+    {
+      "name": "17_brand_leaf_icon",
+      "role": "icon",
+      "box": [239, 115, 290, 161],
+      "extract": "nonbg"
+    },
+    {
+      "name": "18_notification_bell",
+      "role": "icon",
+      "box": [714, 108, 763, 160],
+      "extract": "nonbg"
+    },
+    {
+      "name": "19_status_bar",
+      "role": "object",
+      "box": [57, 27, 898, 63],
+      "extract": "nonbg"
+    },
+    {
+      "name": "20_greeting_title",
+      "role": "text",
+      "box": [47, 253, 371, 310],
+      "extract": "nonbg"
+    },
+    {
+      "name": "21_greeting_subtitle",
+      "role": "text",
+      "box": [47, 336, 375, 374],
+      "extract": "nonbg"
+    },
+    {
+      "name": "22_calendar_icon",
+      "role": "icon",
+      "parent": "01_calendar_card",
+      "box": [73, 448, 107, 482],
+      "extract": "nonbg"
+    },
+    {
+      "name": "23_calendar_title",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [117, 446, 235, 482],
+      "extract": "nonbg"
+    },
+    {
+      "name": "24_calendar_view_all",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [744, 448, 873, 482],
+      "extract": "nonbg"
+    },
+    {
+      "name": "25_calendar_day_1",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [104, 526, 146, 603],
+      "extract": "nonbg"
+    },
+    {
+      "name": "26_calendar_day_2",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [222, 526, 265, 603],
+      "extract": "nonbg"
+    },
+    {
+      "name": "27_calendar_day_3",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [340, 526, 383, 603],
+      "extract": "nonbg"
+    },
+    {
+      "name": "28_calendar_day_4",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [459, 526, 502, 603],
+      "extract": "nonbg"
+    },
+    {
+      "name": "29_calendar_day_5",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [577, 526, 620, 603],
+      "extract": "nonbg"
+    },
+    {
+      "name": "30_calendar_day_6",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [695, 526, 738, 603],
+      "extract": "nonbg"
+    },
+    {
+      "name": "31_calendar_day_7",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [814, 526, 856, 603],
+      "extract": "nonbg"
+    },
+    {
+      "name": "32_calendar_task_icon_water_1",
+      "role": "icon",
+      "parent": "01_calendar_card",
+      "box": [103, 625, 147, 691],
+      "extract": "circle"
+    },
+    {
+      "name": "33_calendar_task_icon_fertilize_1",
+      "role": "icon",
+      "parent": "01_calendar_card",
+      "box": [218, 625, 268, 691],
+      "extract": "circle"
+    },
+    {
+      "name": "34_calendar_task_icon_prune",
+      "role": "icon",
+      "parent": "01_calendar_card",
+      "box": [335, 625, 385, 691],
+      "extract": "circle"
+    },
+    {
+      "name": "35_calendar_task_icon_water_2",
+      "role": "icon",
+      "parent": "01_calendar_card",
+      "box": [453, 625, 503, 691],
+      "extract": "circle"
+    },
+    {
+      "name": "36_calendar_task_icon_fertilize_2",
+      "role": "icon",
+      "parent": "01_calendar_card",
+      "box": [572, 625, 622, 691],
+      "extract": "circle"
+    },
+    {
+      "name": "37_calendar_task_icon_sun",
+      "role": "icon",
+      "parent": "01_calendar_card",
+      "box": [690, 625, 740, 691],
+      "extract": "circle"
+    },
+    {
+      "name": "38_calendar_task_icon_spray",
+      "role": "icon",
+      "parent": "01_calendar_card",
+      "box": [808, 625, 858, 691],
+      "extract": "circle"
+    },
+    {
+      "name": "39_calendar_task_label_1",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [99, 704, 151, 735],
+      "extract": "nonbg"
+    },
+    {
+      "name": "40_calendar_task_label_2",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [217, 704, 269, 735],
+      "extract": "nonbg"
+    },
+    {
+      "name": "41_calendar_task_label_3",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [333, 704, 385, 735],
+      "extract": "nonbg"
+    },
+    {
+      "name": "42_calendar_task_label_4",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [451, 704, 503, 735],
+      "extract": "nonbg"
+    },
+    {
+      "name": "43_calendar_task_label_5",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [569, 704, 621, 735],
+      "extract": "nonbg"
+    },
+    {
+      "name": "44_calendar_task_label_6",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [687, 704, 745, 735],
+      "extract": "nonbg"
+    },
+    {
+      "name": "45_calendar_task_label_7",
+      "role": "text",
+      "parent": "01_calendar_card",
+      "box": [805, 704, 860, 735],
+      "extract": "nonbg"
+    },
+    {
+      "name": "46_attention_heading",
+      "role": "text",
+      "box": [47, 831, 179, 870],
+      "extract": "nonbg"
+    },
+    {
+      "name": "47_attention_view_all",
+      "role": "text",
+      "box": [756, 833, 885, 870],
+      "extract": "nonbg"
+    },
+    {
+      "name": "48_plant_name_pothos",
+      "role": "text",
+      "parent": "03_plant_card_1",
+      "box": [71, 1108, 156, 1145],
+      "extract": "nonbg"
+    },
+    {
+      "name": "49_plant_care_icon_pothos",
+      "role": "icon",
+      "parent": "03_plant_card_1",
+      "box": [258, 1104, 301, 1147],
+      "extract": "circle"
+    },
+    {
+      "name": "50_plant_status_pothos",
+      "role": "text",
+      "parent": "03_plant_card_1",
+      "box": [71, 1155, 187, 1187],
+      "extract": "nonbg"
+    },
+    {
+      "name": "51_plant_last_care_pothos",
+      "role": "text",
+      "parent": "03_plant_card_1",
+      "box": [71, 1195, 256, 1227],
+      "extract": "nonbg"
+    },
+    {
+      "name": "52_plant_name_monstera",
+      "role": "text",
+      "parent": "04_plant_card_2",
+      "box": [359, 1108, 473, 1145],
+      "extract": "nonbg"
+    },
+    {
+      "name": "53_plant_care_icon_monstera",
+      "role": "icon",
+      "parent": "04_plant_card_2",
+      "box": [546, 1104, 589, 1147],
+      "extract": "circle"
+    },
+    {
+      "name": "54_plant_status_monstera",
+      "role": "text",
+      "parent": "04_plant_card_2",
+      "box": [359, 1155, 475, 1187],
+      "extract": "nonbg"
+    },
+    {
+      "name": "55_plant_last_care_monstera",
+      "role": "text",
+      "parent": "04_plant_card_2",
+      "box": [359, 1195, 548, 1227],
+      "extract": "nonbg"
+    },
+    {
+      "name": "56_plant_name_snake_plant",
+      "role": "text",
+      "parent": "05_plant_card_3",
+      "box": [647, 1108, 746, 1145],
+      "extract": "nonbg"
+    },
+    {
+      "name": "57_plant_care_icon_snake_plant",
+      "role": "icon",
+      "parent": "05_plant_card_3",
+      "box": [834, 1104, 877, 1147],
+      "extract": "circle"
+    },
+    {
+      "name": "58_plant_status_snake_plant",
+      "role": "text",
+      "parent": "05_plant_card_3",
+      "box": [647, 1155, 797, 1187],
+      "extract": "nonbg"
+    },
+    {
+      "name": "59_plant_last_care_snake_plant",
+      "role": "text",
+      "parent": "05_plant_card_3",
+      "box": [647, 1195, 835, 1227],
+      "extract": "nonbg"
+    },
+    {
+      "name": "60_action_icon_my_plants",
+      "role": "icon",
+      "parent": "06_action_tile_my_plants",
+      "box": [97, 1295, 197, 1395],
+      "extract": "circle"
+    },
+    {
+      "name": "61_action_label_my_plants",
+      "role": "text",
+      "parent": "06_action_tile_my_plants",
+      "box": [91, 1408, 205, 1443],
+      "extract": "nonbg"
+    },
+    {
+      "name": "62_action_icon_add_plant",
+      "role": "icon",
+      "parent": "07_action_tile_add_plant",
+      "box": [313, 1295, 413, 1395],
+      "extract": "circle"
+    },
+    {
+      "name": "63_action_label_add_plant",
+      "role": "text",
+      "parent": "07_action_tile_add_plant",
+      "box": [285, 1408, 441, 1443],
+      "extract": "nonbg"
+    },
+    {
+      "name": "64_action_icon_encyclopedia",
+      "role": "icon",
+      "parent": "08_action_tile_encyclopedia",
+      "box": [529, 1295, 629, 1395],
+      "extract": "circle"
+    },
+    {
+      "name": "65_action_label_encyclopedia",
+      "role": "text",
+      "parent": "08_action_tile_encyclopedia",
+      "box": [524, 1408, 635, 1443],
+      "extract": "nonbg"
+    },
+    {
+      "name": "66_action_icon_care_records",
+      "role": "icon",
+      "parent": "09_action_tile_care_records",
+      "box": [745, 1295, 845, 1395],
+      "extract": "circle"
+    },
+    {
+      "name": "67_action_label_care_records",
+      "role": "text",
+      "parent": "09_action_tile_care_records",
+      "box": [740, 1408, 850, 1443],
+      "extract": "nonbg"
+    },
+    {
+      "name": "68_nav_icon_home",
+      "role": "icon",
+      "parent": "10_bottom_navigation",
+      "box": [77, 1523, 132, 1575],
+      "extract": "nonbg"
+    },
+    {
+      "name": "69_nav_label_home",
+      "role": "text",
+      "parent": "10_bottom_navigation",
+      "box": [80, 1581, 130, 1612],
+      "extract": "nonbg"
+    },
+    {
+      "name": "70_nav_icon_plants",
+      "role": "icon",
+      "parent": "10_bottom_navigation",
+      "box": [263, 1521, 310, 1578],
+      "extract": "nonbg"
+    },
+    {
+      "name": "71_nav_label_plants",
+      "role": "text",
+      "parent": "10_bottom_navigation",
+      "box": [262, 1581, 312, 1612],
+      "extract": "nonbg"
+    },
+    {
+      "name": "72_nav_icon_discover",
+      "role": "icon",
+      "parent": "10_bottom_navigation",
+      "box": [444, 1521, 495, 1576],
+      "extract": "nonbg"
+    },
+    {
+      "name": "73_nav_label_discover",
+      "role": "text",
+      "parent": "10_bottom_navigation",
+      "box": [443, 1581, 496, 1612],
+      "extract": "nonbg"
+    },
+    {
+      "name": "74_nav_icon_community",
+      "role": "icon",
+      "parent": "10_bottom_navigation",
+      "box": [625, 1521, 678, 1578],
+      "extract": "nonbg"
+    },
+    {
+      "name": "75_nav_label_community",
+      "role": "text",
+      "parent": "10_bottom_navigation",
+      "box": [626, 1581, 678, 1612],
+      "extract": "nonbg"
+    },
+    {
+      "name": "76_nav_icon_profile",
+      "role": "icon",
+      "parent": "10_bottom_navigation",
+      "box": [807, 1521, 859, 1578],
+      "extract": "nonbg"
+    },
+    {
+      "name": "77_nav_label_profile",
+      "role": "text",
+      "parent": "10_bottom_navigation",
+      "box": [806, 1581, 860, 1612],
+      "extract": "nonbg"
+    },
+    {
+      "name": "78_home_indicator",
+      "role": "object",
+      "parent": "10_bottom_navigation",
+      "box": [306, 1642, 635, 1659],
+      "extract": "raw"
+    }
   ]
 }

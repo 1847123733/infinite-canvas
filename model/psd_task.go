@@ -23,5 +23,7 @@ type PSDTask struct {
 	StartedAt  string        `json:"startedAt"`
 	FinishedAt string        `json:"finishedAt"`
 	Error      string        `json:"error"`
+	Warning    string        `json:"warning"`
+	Stage      string        `json:"stage"`
 	Files      []PSDTaskFile `json:"files"`
 }
